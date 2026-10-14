@@ -1564,7 +1564,7 @@
     "description": "Recruiter Directory, Account Owners & Relationships",
     "icon": "Building2",
     "primaryId": "Company ID",
-    "columnCount": 11,
+    "columnCount": 13,
     "columns": [
       {
         "key": "Company ID",
@@ -1590,6 +1590,26 @@
         "key": "Industry",
         "label": "Industry",
         "type": "string",
+        "isPrimary": false,
+        "isForeignKey": false,
+        "targetModule": null,
+        "options": null,
+        "filterable": false
+      },
+      {
+        "key": "Job Role",
+        "label": "Job Role",
+        "type": "string",
+        "isPrimary": false,
+        "isForeignKey": false,
+        "targetModule": null,
+        "options": null,
+        "filterable": false
+      },
+      {
+        "key": "JD",
+        "label": "JD",
+        "type": "url",
         "isPrimary": false,
         "isForeignKey": false,
         "targetModule": null,
