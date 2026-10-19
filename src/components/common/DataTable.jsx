@@ -95,6 +95,10 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, allStuden
         // Opportunity ID Link -> Displays Company Name and links to opportunity
         if (col.key === 'Opportunity ID') {
             let compName = String(record['Company Name'] || record['Company'] || '');
+            if (!compName && allOpportunities) {
+                const opp = allOpportunities.find(o => o['Opportunity ID'] === rawVal);
+                if (opp) compName = opp['Company Name'] || '';
+            }
             if (compName.toLowerCase() === 'radall')
                 compName = 'Radiall';
             const displayOppId = String(rawVal).replace(/RADALL/g, 'RADIALL');

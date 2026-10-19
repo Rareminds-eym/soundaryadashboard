@@ -532,7 +532,7 @@ export const DashboardPage = ({ db, onNavigateModule, onStudentClick, }) => {
             return (<div key={app['Application ID']} className="py-3 flex items-center justify-between">
                       <div>
                         <button onClick={() => onStudentClick(app['Student ID'])} className="text-xs font-bold text-slate-900 hover:text-blue-600 transition-colors text-left block">
-                          {student?.['Full Name'] || app['Student ID']}
+                          {student?.['Full Name'] || app['Student Name'] || app['Student ID']}
                         </button>
                         <div className="text-[11px] text-slate-500 mt-0.5">
                           {opp?.['Role Title']} • <strong className="text-slate-700">{comp?.['Company Name']}</strong>

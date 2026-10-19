@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search, X, Filter } from 'lucide-react';
-export const FilterBar = ({ searchQuery, onSearchChange, filters, onFilterChange, onClearFilters, filterableColumns, totalRecords, filteredCount, }) => {
+export const FilterBar = ({ searchQuery, onSearchChange, filters, onFilterChange, onClearFilters, filterableColumns, totalRecords, filteredCount, placeholder, }) => {
     const hasActiveFilters = searchQuery.trim() !== '' || Object.values(filters).some(v => v !== '');
     // Take top 4 most useful dropdown filters
     const dropdownCols = filterableColumns.filter(c => c.options && c.options.length > 0).slice(0, 4);
@@ -9,7 +9,7 @@ export const FilterBar = ({ searchQuery, onSearchChange, filters, onFilterChange
         {/* Global Search within module */}
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
-          <input type="text" placeholder="Search records by ID, name, keywords..." value={searchQuery} onChange={e => onSearchChange(e.target.value)} className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 placeholder-slate-400"/>
+          <input type="text" placeholder={placeholder || "Search records by ID, name, keywords..."} value={searchQuery} onChange={e => onSearchChange(e.target.value)} className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 placeholder-slate-400"/>
           {searchQuery && (<button onClick={() => onSearchChange('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
               <X className="w-3.5 h-3.5"/>
             </button>)}

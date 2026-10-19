@@ -1,10 +1,10 @@
 /**
- * googleSheetsService.ts
- * Two-way live sync service to read and write directly with Google Sheets.
- *
- * - Read mode: Google Visualization API (GViz) + Google Apps Script Web App
- * - Write mode: Google Apps Script Web App (pushAll, createRecord, updateRecord, deleteRecord)
- */
+* googleSheetsService.ts
+* Two-way live sync service to read and write directly with Google Sheets.
+*
+* - Read mode: Google Visualization API (GViz) + Google Apps Script Web App
+* - Write mode: Google Apps Script Web App (pushAll, createRecord, updateRecord, deleteRecord)
+*/
 import { initialDatabase } from '@/data/mockData';
 import { loadDatabase, saveDatabase, sanitizeDatabase } from '@/services/dataService';
 export const DEFAULT_SPREADSHEET_ID = '1YvkSqmwgsboaKBmesFWmAArzWdgYgpf04DoyJOyBth8';
@@ -144,11 +144,27 @@ export async function syncAllFromGoogleSheets(spreadsheetId = DEFAULT_SPREADSHEE
                                     if (a['Application ID'])
                                         appMap.set(a['Application ID'], a);
                                 });
-                                rows.forEach((r) => {
+                                (rows.forEach((r) => {
                                     if (r['Application ID'])
                                         appMap.set(r['Application ID'], r);
-                                });
+                                }));
                                 newDb[dbKey] = Array.from(appMap.values());
+                            }
+                            else if (dbKey === 'students') {
+                                const studentMap = new Map();
+                                (initialDatabase.students || []).forEach((s) => {
+                                    if (s['Student ID'])
+                                        studentMap.set(s['Student ID'], s);
+                                });
+                                (currentDb.students || []).forEach((s) => {
+                                    if (s['Student ID'])
+                                        studentMap.set(s['Student ID'], s);
+                                });
+                                rows.forEach((r) => {
+                                    if (r['Student ID'])
+                                        studentMap.set(r['Student ID'], r);
+                                });
+                                newDb[dbKey] = Array.from(studentMap.values());
                             }
                             else {
                                 newDb[dbKey] = rows;
@@ -203,6 +219,38 @@ export async function syncAllFromGoogleSheets(spreadsheetId = DEFAULT_SPREADSHEE
                         fileMap.set(r['File ID'], r);
                 });
                 newDb[dbKey] = Array.from(fileMap.values());
+            }
+            else if (dbKey === 'students') {
+                const studentMap = new Map();
+                (initialDatabase.students || []).forEach((s) => {
+                    if (s['Student ID'])
+                        studentMap.set(s['Student ID'], s);
+                });
+                (currentDb.students || []).forEach((s) => {
+                    if (s['Student ID'])
+                        studentMap.set(s['Student ID'], s);
+                });
+                rows.forEach((r) => {
+                    if (r['Student ID'])
+                        studentMap.set(r['Student ID'], r);
+                });
+                newDb[dbKey] = Array.from(studentMap.values());
+            }
+            else if (dbKey === 'applications') {
+                const appMap = new Map();
+                (initialDatabase.applications || []).forEach((a) => {
+                    if (a['Application ID'])
+                        appMap.set(a['Application ID'], a);
+                });
+                (currentDb.applications || []).forEach((a) => {
+                    if (a['Application ID'])
+                        appMap.set(a['Application ID'], a);
+                });
+                rows.forEach((r) => {
+                    if (r['Application ID'])
+                        appMap.set(r['Application ID'], r);
+                });
+                newDb[dbKey] = Array.from(appMap.values());
             }
             else {
                 newDb[dbKey] = rows;

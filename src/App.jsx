@@ -80,7 +80,7 @@ export const App = () => {
         const testFile = db.studentFiles?.find((f) => f['File ID'] === 'FILE-0288');
         if (firstId.startsWith('SOU-') ||
             firstId.startsWith('SIMS_') ||
-            (db.students?.length !== initialDatabase.students.length) ||
+            (db.students?.length < 70) ||
             (db.attendance?.length < 900) ||
             (db.studentFiles?.length < 354) ||
             (db.assessmentAttempts?.length < 500) ||
@@ -94,6 +94,7 @@ export const App = () => {
             (db.companies?.some((c) => c['Company ID'] === 'COMP-008' && c['Mapped Stream']?.includes('MCA'))) ||
             (!db.sessions?.[0]?.['Actual Learning Hours']) ||
             (db.students?.some((s) => s['Student ID'] === 'Po4ku24m015060')) ||
+            (!db.students?.some((s) => s['Student ID'] === 'P04KU24M015060')) ||
             (db.companies?.some((c) => c['Website'])) ||
             (db.applications?.some((a) => a['Company Name'] === 'Radall' || a['Opportunity ID'] === 'EXP-MBA-RADALL')) ||
             (db.applications?.length < initialDatabase.applications.length) ||
@@ -126,8 +127,8 @@ export const App = () => {
             pullLatest();
         };
         window.addEventListener('focus', handleFocus);
-        // 3. Background periodic sync every 15 seconds
-        const interval = setInterval(pullLatest, 15000);
+        // 3. Background periodic sync every 10 seconds
+        const interval = setInterval(pullLatest, 10000);
         return () => {
             isCancelled = true;
             window.removeEventListener('focus', handleFocus);
@@ -357,7 +358,7 @@ export const App = () => {
         if (moduleConfig) {
             const dataKey = MODULE_DATA_KEY_MAP[currentRoute];
             const records = dataKey ? db[dataKey] || [] : [];
-            return (<GenericModulePage key={currentRoute} moduleConfig={moduleConfig} data={records} allStudents={db.students} allSessions={db.sessions} allAttendance={db.attendance} allCareerProfiles={db.careerProfiles} allAssessmentAttempts={db.assessmentAttempts} allCompanies={db.companies} allOpportunities={db.opportunities} userRole={session.user.role} onRowClick={(rec) => handleRowClick(rec, moduleConfig)} onStudentClick={handleStudentClick} onRelatedClick={handleRelatedClick} onUploadClick={() => {
+            return (<GenericModulePage key={currentRoute} moduleConfig={moduleConfig} data={records} allStudents={db.students} allStudentFiles={db.studentFiles} allSessions={db.sessions} allAttendance={db.attendance} allCareerProfiles={db.careerProfiles} allAssessmentAttempts={db.assessmentAttempts} allCompanies={db.companies} allOpportunities={db.opportunities} userRole={session.user.role} onRowClick={(rec) => handleRowClick(rec, moduleConfig)} onStudentClick={handleStudentClick} onRelatedClick={handleRelatedClick} onUploadClick={() => {
                     setUploadDefaultModule(moduleConfig.id);
                     setIsUploadOpen(true);
                 }} onAddRecord={handleAddRecord} onEditRecord={handleEditRecord} onDeleteRecord={handleDeleteRecord} onUpsertAttendance={handleUpsertAttendance} onAddSessionColumn={handleAddSessionColumn}/>);

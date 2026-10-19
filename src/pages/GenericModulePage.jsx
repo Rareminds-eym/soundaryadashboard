@@ -12,7 +12,7 @@ import { StudentFilesGroupedView } from '@/components/common/StudentFilesGrouped
 import { StudentSubmissionsGroupedView } from '@/components/common/StudentSubmissionsGroupedView';
 import { Table, Calendar as CalendarIcon, Kanban, Clock, LayoutGrid, List, Layers, Building2, MapPin, ExternalLink, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { formatINR } from '@/utils/formatters';
-export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSessions = [], allAttendance = [], allCareerProfiles = [], allAssessmentAttempts = [], allCompanies = [], allOpportunities = [], userRole, onRowClick, onStudentClick, onRelatedClick, onUploadClick, onAddRecord, onEditRecord, onDeleteRecord, onUpsertAttendance, onAddSessionColumn, }) => {
+export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStudentFiles = [], allSessions = [], allAttendance = [], allCareerProfiles = [], allAssessmentAttempts = [], allCompanies = [], allOpportunities = [], userRole, onRowClick, onStudentClick, onRelatedClick, onUploadClick, onAddRecord, onEditRecord, onDeleteRecord, onUpsertAttendance, onAddSessionColumn, }) => {
     const isReadOnly = userRole === 'COLLEGE_VIEWER';
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +132,22 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
                 if (!matches && record['Student ID']) {
                     const sName = studentLookupMap.get(record['Student ID']);
                     if (sName && sName.toLowerCase().includes(query)) {
+                        matches = true;
+                    }
+                }
+                if (!matches && record['Opportunity ID']) {
+                    const opp = allOpportunities.find(o => o['Opportunity ID'] === record['Opportunity ID']);
+                    if (opp) {
+                        const compName = String(opp['Company Name'] || '').toLowerCase();
+                        const roleTitle = String(opp['Role Title'] || opp['Role'] || '').toLowerCase();
+                        if (compName.includes(query) || roleTitle.includes(query)) {
+                            matches = true;
+                        }
+                    }
+                }
+                if (!matches && record['Company ID']) {
+                    const compName = companyLookupMap.get(record['Company ID']);
+                    if (compName && compName.toLowerCase().includes(query)) {
                         matches = true;
                     }
                 }
@@ -787,7 +803,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
                 setSearchQuery('');
                 setFilters({});
                 setQuickCategoryFilter(null);
-            }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length}/>)}
+            }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length} placeholder={moduleConfig.id === 'applications' ? 'Search by Student Name, Company Name, Application ID, Opportunity ID...' : undefined}/>)}
 
       {/* Main View: Standard Full-Field Data Table */}
       {viewMode === 'table' && (<DataTable columns={moduleConfig.columns} visibleColumns={visibleColumns} data={filteredData} primaryKey={moduleConfig.primaryId} allStudents={allStudents} allOpportunities={allOpportunities} onRowClick={onRowClick} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick} onEditRow={isReadOnly ? undefined : handleEditRow} onDeleteRow={isReadOnly ? undefined : handleDeleteRow} onFilePreview={moduleConfig.id === 'student-files' ? (rec) => setPreviewFile(rec) : undefined} moduleTitle={moduleConfig.title}/>)}
@@ -928,7 +944,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
         </div>)}
 
       {/* Add / Edit Record Modal */}
-      <RecordFormModal isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setEditingRecord(null); }} moduleConfig={moduleConfig} existingRecord={editingRecord} onSave={handleFormSave}/>
+      <RecordFormModal isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setEditingRecord(null); }} moduleConfig={moduleConfig} existingRecord={editingRecord} onSave={handleFormSave} allStudents={allStudents} allStudentFiles={allStudentFiles} allCompanies={allCompanies} allOpportunities={allOpportunities} allRecords={data}/>
 
       {/* File Preview Modal (student-files only) */}
       {moduleConfig.id === 'student-files' && (<FilePreviewModal isOpen={Boolean(previewFile)} onClose={() => setPreviewFile(null)} fileRecord={previewFile} onStudentClick={onStudentClick}/>)}

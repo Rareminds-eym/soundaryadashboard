@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.10.14_mca_tech_interviews_v48';
+const SCHEMA_VERSION = 'v2026.10.17_rareminds_selections_v52';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v48';
+const STORAGE_KEY = 'rareminds_portal_real_db_v52';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -71,7 +71,37 @@ export function normalizeStreamName(stream, programme, spec) {
 }
 export function sanitizeDatabase(database) {
     if (Array.isArray(database.students)) {
-        database.students = database.students
+        const studentMap = new Map();
+        (initialDatabase.students || []).forEach(s => {
+            if (s['Student ID'])
+                studentMap.set(s['Student ID'], s);
+        });
+        database.students.forEach(s => {
+            if (s['Student ID']) {
+                const existing = studentMap.get(s['Student ID']) || {};
+                studentMap.set(s['Student ID'], { ...existing, ...s });
+            }
+        });
+        if (!studentMap.has('P04KU24M015060')) {
+            studentMap.set('P04KU24M015060', {
+                'Student ID': 'P04KU24M015060',
+                'College Registration/USN': 'P04KU24M015060',
+                'Full Name': 'Chethan',
+                Programme: 'MBA',
+                Batch: '2024-26',
+                'Primary Specialisation': 'Marketing',
+                'Secondary Specialisation': null,
+                'Assigned Training Stream': 'Marketing',
+                Email: 'chethan.sims@gmail.com',
+                Mobile: '9876543210',
+                'Registration Date': '03-Sep-2026',
+                'Internship Status': 'In Progress',
+                'Training Participation Status': 'Registered',
+                'Placement Interest': 'Seeking Placement',
+                'Record Updated On': null,
+            });
+        }
+        database.students = Array.from(studentMap.values())
             .filter(s => s['Student ID'] !== 'P03KU24M015012' &&
             s['Full Name'] !== 'Harsha' &&
             s['Student ID'] !== 'P03KU24M015063' &&
@@ -186,7 +216,7 @@ export function loadDatabase() {
             // If parsed contains old dummy SOU-2026 IDs or less than 80 students, discard and reload real data
             const firstId = parsed.students?.[0]?.['Student ID'] || '';
             if (firstId.startsWith('SOU-') ||
-                (parsed.students?.length !== initialDatabase.students.length) ||
+                (parsed.students?.length < 70) ||
                 (parsed.studentFiles && parsed.studentFiles.length < initialDatabase.studentFiles.length)) {
                 return resetDatabase();
             }
