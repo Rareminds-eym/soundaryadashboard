@@ -511,7 +511,8 @@ export const RecordFormModal = ({
   allOpportunities = [],
   allRecords = [],
 }) => {
-  const isEditMode = Boolean(existingRecord);
+  const primaryColKey = moduleConfig?.primaryId || 'id';
+  const isEditMode = Boolean(existingRecord && existingRecord[primaryColKey]);
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
   const [page, setPage] = useState(0);
@@ -519,8 +520,7 @@ export const RecordFormModal = ({
   const prevIsOpenRef = useRef(false);
   const prevRecordKeyRef = useRef(null);
 
-  const primaryColKey = moduleConfig?.primaryId || 'id';
-  const recordKey = existingRecord ? existingRecord[primaryColKey] : '__new__';
+  const recordKey = isEditMode ? existingRecord[primaryColKey] : '__new__';
 
   // Compute tabs based on module
   const tabs = useMemo(() => {
@@ -548,6 +548,11 @@ export const RecordFormModal = ({
         } else {
           const initial = buildEmptyRecord(moduleConfig.columns);
 
+          // Preserve any initial presets passed in existingRecord (e.g. stage pre-selected from Kanban)
+          if (existingRecord) {
+            Object.assign(initial, existingRecord);
+          }
+
           // Auto-generate Application ID if creating a new application record
           if (moduleConfig.id === 'applications') {
             let maxNum = 0;
@@ -560,7 +565,8 @@ export const RecordFormModal = ({
             });
             initial['Application ID'] = `APP-${String(maxNum + 1).padStart(4, '0')}`;
             initial['Applied On'] = fromIsoDate(new Date().toISOString().split('T')[0]);
-            initial['Current Stage'] = 'Applied';
+            initial['Current Stage'] = existingRecord?.['Current Stage'] || 'Applied';
+            initial['Final Outcome'] = existingRecord?.['Final Outcome'] || 'Ongoing';
             initial['Eligibility Checked'] = 'Yes';
             initial['Student Interest Confirmed'] = 'Yes';
           }
@@ -605,7 +611,24 @@ export const RecordFormModal = ({
   }
 
   const handleFieldChange = (key, value) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [key]: value };
+      // Keep Current Stage & Final Outcome in sync for Applications
+      if (moduleConfig.id === 'applications' && key === 'Current Stage') {
+        if (value === 'Rejected') {
+          next['Final Outcome'] = 'Rejected';
+        } else if (value === 'On Hold') {
+          if (next['Final Outcome'] === 'Rejected') {
+            next['Final Outcome'] = 'Ongoing';
+          }
+        } else if (['Applied', 'Shortlisted', 'Interview', 'Assessment', 'Screening', 'Offered'].includes(value)) {
+          if (next['Final Outcome'] === 'Rejected' || !next['Final Outcome']) {
+            next['Final Outcome'] = 'Ongoing';
+          }
+        }
+      }
+      return next;
+    });
     if (errors[key]) {
       setErrors(prev => {
         const n = { ...prev };
@@ -613,6 +636,15 @@ export const RecordFormModal = ({
         return n;
       });
     }
+  };
+
+  const handleMultipleFieldsChange = (updates) => {
+    setFormData(prev => ({ ...prev, ...updates }));
+    setErrors(prev => {
+      const n = { ...prev };
+      Object.keys(updates).forEach(k => delete n[k]);
+      return n;
+    });
   };
 
   const validate = () => {
@@ -649,53 +681,100 @@ export const RecordFormModal = ({
     const baseClass = 'w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all';
     const value = formData[col.key];
 
-    // Special: Student Picker for Student ID
+    // Special: Student Picker for Student ID with comprehensive auto-mapping
     if (col.key === 'Student ID') {
       return (
         <StudentPicker
           value={value}
           allStudents={allStudents}
           onSelect={(id, studentObj) => {
-            handleFieldChange('Student ID', id);
-            if (studentObj) {
-              handleFieldChange('Student Name', studentObj['Full Name'] || studentObj['Student Name'] || '');
-              if (studentObj['Primary Specialisation']) {
-                handleFieldChange('Specialization', studentObj['Primary Specialisation']);
-              }
-              // Automatically map the student's Resume File ID
-              const studentResume = (allStudentFiles || []).find(
-                f => (f['Student ID'] === id || f['Student ID'] === studentObj['Student ID']) &&
-                /resume/i.test(f['File Type'] || f['File Name'] || '')
-              ) || (allStudentFiles || []).find(
-                f => f['Student ID'] === id || f['Student ID'] === studentObj['Student ID']
-              );
-
-              if (studentResume && studentResume['File ID']) {
-                handleFieldChange('Resume File ID Used', studentResume['File ID']);
-              }
+            if (!id || !studentObj) {
+              handleFieldChange('Student ID', id || '');
+              return;
             }
+
+            const studentName = studentObj['Full Name'] || studentObj['Student Name'] || '';
+            const updates = {
+              'Student ID': id,
+              'Student Name': studentName,
+              'Full Name': studentName
+            };
+
+            if (studentObj['College Registration/USN']) {
+              updates['College Registration/USN'] = studentObj['College Registration/USN'];
+            }
+            if (studentObj['Programme']) {
+              updates['Programme'] = studentObj['Programme'];
+            }
+            if (studentObj['Primary Specialisation']) {
+              updates['Primary Specialisation'] = studentObj['Primary Specialisation'];
+              updates['Specialization'] = studentObj['Primary Specialisation'];
+            }
+            if (studentObj['Assigned Training Stream']) {
+              updates['Assigned Training Stream'] = studentObj['Assigned Training Stream'];
+            }
+
+            // Find resume file if available
+            const studentResume = (allStudentFiles || []).find(
+              f => (f['Student ID'] === id || f['Student ID'] === studentObj['Student ID']) &&
+              /resume/i.test(f['File Type'] || f['File Name'] || '')
+            ) || (allStudentFiles || []).find(
+              f => f['Student ID'] === id || f['Student ID'] === studentObj['Student ID']
+            );
+
+            if (studentResume && studentResume['File ID']) {
+              updates['Resume File ID Used'] = studentResume['File ID'];
+            }
+
+            // Auto-populate all matching schema columns from the selected student record
+            (moduleConfig.columns || []).forEach(c => {
+              const k = c.key;
+              if (k === 'Student ID') return;
+
+              // Exact match from student record if present
+              if (studentObj[k] !== undefined && studentObj[k] !== null && String(studentObj[k]).trim() !== '') {
+                updates[k] = studentObj[k];
+              }
+            });
+
+            handleMultipleFieldsChange(updates);
           }}
         />
       );
     }
 
-    // Special: Company Picker for Company ID (Option 1)
+    // Special: Company Picker for Company ID (Option 1) with auto-mapping
     if (col.key === 'Company ID') {
       return (
         <CompanyPicker
           value={value}
           allCompanies={allCompanies}
           onSelect={(compId, compObj) => {
-            handleFieldChange('Company ID', compId);
-            if (compObj) {
-              handleFieldChange('Company Name', compObj['Company Name'] || '');
+            if (!compId || !compObj) {
+              handleFieldChange('Company ID', compId || '');
+              return;
             }
+            const updates = {
+              'Company ID': compId,
+              'Company Name': compObj['Company Name'] || compId
+            };
+            if (compObj['Industry']) updates['Industry'] = compObj['Industry'];
+            if (compObj['Headquarters / Location']) updates['Location'] = compObj['Headquarters / Location'];
+
+            (moduleConfig.columns || []).forEach(c => {
+              const k = c.key;
+              if (k === 'Company ID') return;
+              if (compObj[k] !== undefined && compObj[k] !== null && String(compObj[k]).trim() !== '') {
+                updates[k] = compObj[k];
+              }
+            });
+            handleMultipleFieldsChange(updates);
           }}
         />
       );
     }
 
-    // Special: Opportunity Picker for Opportunity ID (When mapping in applications)
+    // Special: Opportunity Picker for Opportunity ID (When mapping in applications) with auto-mapping
     if (col.key === 'Opportunity ID' && moduleConfig.id !== 'opportunities') {
       return (
         <OpportunityPicker
@@ -703,10 +782,33 @@ export const RecordFormModal = ({
           allOpportunities={allOpportunities}
           allCompanies={allCompanies}
           onSelect={(oppId, oppObj) => {
-            handleFieldChange('Opportunity ID', oppId);
-            if (oppObj) {
-              handleFieldChange('Company Name', oppObj['Company Name'] || '');
+            if (!oppId || !oppObj) {
+              handleFieldChange('Opportunity ID', oppId || '');
+              return;
             }
+            const compName = oppObj['Company Name'] || '';
+            const role = oppObj['Role Title'] || oppObj['Job Role'] || '';
+            const updates = {
+              'Opportunity ID': oppId,
+              'Company Name': compName,
+              'Role Title': role,
+              'Job Role': role
+            };
+            if (oppObj['Company ID']) updates['Company ID'] = oppObj['Company ID'];
+            if (oppObj['Fixed Pay']) updates['Offered Fixed Pay'] = oppObj['Fixed Pay'];
+            if (oppObj['Variable Pay']) updates['Offered Variable Pay'] = oppObj['Variable Pay'];
+            if (oppObj['Total CTC'] || oppObj['Offered CTC / Stipend']) {
+              updates['Offered CTC'] = oppObj['Total CTC'] || oppObj['Offered CTC / Stipend'];
+            }
+
+            (moduleConfig.columns || []).forEach(c => {
+              const k = c.key;
+              if (k === 'Opportunity ID') return;
+              if (oppObj[k] !== undefined && oppObj[k] !== null && String(oppObj[k]).trim() !== '') {
+                updates[k] = oppObj[k];
+              }
+            });
+            handleMultipleFieldsChange(updates);
           }}
         />
       );

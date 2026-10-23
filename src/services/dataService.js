@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.10.17_rareminds_selections_v52';
+const SCHEMA_VERSION = 'v2026.10.22_rareminds_official_75_students_v55';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v52';
+const STORAGE_KEY = 'rareminds_portal_real_db_v55';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -102,10 +102,12 @@ export function sanitizeDatabase(database) {
             });
         }
         database.students = Array.from(studentMap.values())
-            .filter(s => s['Student ID'] !== 'P03KU24M015012' &&
+            .filter(s => s['Student ID'] !== 'P03KU24M015063' &&
+            s['Full Name'] !== 'Rakshitha M R' &&
+            s['Student ID'] !== 'P03KU24M015012' &&
             s['Full Name'] !== 'Harsha' &&
-            s['Student ID'] !== 'P03KU24M015063' &&
-            s['Full Name'] !== 'Rakshitha M R')
+            s['Student ID'] !== 'P03KU24M015086' &&
+            s['Full Name'] !== 'Likhitha B')
             .map(s => ({
             ...s,
             'Assigned Training Stream': normalizeStreamName(s['Assigned Training Stream'], s.Programme, s['Primary Specialisation']),
