@@ -10,7 +10,6 @@ import { initialDatabase, MODULE_DATA_KEY_MAP } from '@/data/mockData';
 import { MODULES_CONFIG } from '@/config/modulesConfig';
 import { loadDatabase, saveDatabase, resetDatabase, createRecord, updateRecord, deleteRecord, bulkImport, upsertAttendanceMatrixRecord, createAttendanceSessionColumn, } from '@/services/dataService';
 import { getAuthSession, setAuthSession, logout as authLogout } from '@/services/authService';
-import { syncAllFromGoogleSheets } from '@/services/googleSheetsService';
 // ─── URL Hash Utilities ──────────────────────────────────────────────────────
 function getInitialRoute(isAuthenticated) {
     try {
@@ -74,65 +73,12 @@ export const App = () => {
             setCurrentRoute('login');
         }
     }, [session]);
-    // Auto-verify and purge any legacy dummy or stale data on startup
+    // Auto-verify and purge legacy dummy data on startup (one-time sanity check)
     useEffect(() => {
         const firstId = db.students?.[0]?.['Student ID'] || '';
-        const testFile = db.studentFiles?.find((f) => f['File ID'] === 'FILE-0288');
-        if (firstId.startsWith('SOU-') ||
-            firstId.startsWith('SIMS_') ||
-            (db.students?.length !== initialDatabase.students.length) ||
-            (db.attendance?.length < 900) ||
-            (db.studentFiles?.length < 354) ||
-            (db.assessmentAttempts?.length < 500) ||
-            (db.sessions?.find((s) => s['Session ID'] === 'SES-MBA-016')?.['Actual Learning Hours'] !== 3) ||
-            (testFile && testFile['File Name'] === 'Submission 1') ||
-            (db.opportunities?.length < 10) ||
-            (db.companies?.length < 10) ||
-            (!db.companies?.[0]?.['Company ID'] || !db.companies?.[0]?.['Company Name']) ||
-            (!db.companies?.[0]?.['Mapped Stream']) ||
-            (!db.companies?.[0]?.['Job Role']) ||
-            (db.companies?.some((c) => c['Company ID'] === 'COMP-008' && c['Mapped Stream']?.includes('MCA'))) ||
-            (!db.sessions?.[0]?.['Actual Learning Hours']) ||
-            (db.students?.some((s) => s['Student ID'] === 'Po4ku24m015060')) ||
-            (db.companies?.some((c) => c['Website'])) ||
-            (db.applications?.some((a) => a['Company Name'] === 'Radall' || a['Opportunity ID'] === 'EXP-MBA-RADALL')) ||
-            (db.applications?.length < initialDatabase.applications.length) ||
-            (!db.applications?.some((a) => a['Student ID'] === 'P03KU24S126015')) ||
-            (!db.applications?.some((a) => a['Student ID'] === 'P03KU24S126002')) ||
-            (!db.applications?.some((a) => a['Student ID'] === 'P03KU24S126006')) ||
-            (!db.applications?.some((a) => a['Student ID'] === 'P03KU24S126009')) ||
-            (db.students?.some((s) => s['Student ID'] === 'P03KU24M015012' || s['Student ID'] === 'P03KU24M015063'))) {
+        if (firstId.startsWith('SOU-') || firstId.startsWith('SIMS_')) {
             setDb(resetDatabase());
         }
-    }, []);
-    // ── Automatic Two-Way Synchronization with Google Sheets ────────────────────
-    useEffect(() => {
-        let isCancelled = false;
-        const pullLatest = async () => {
-            try {
-                const res = await syncAllFromGoogleSheets();
-                if (!isCancelled && res.success && res.updatedDb) {
-                    setDb(res.updatedDb);
-                }
-            }
-            catch {
-                // silent background sync
-            }
-        };
-        // 1. Initial pull on startup
-        pullLatest();
-        // 2. Auto-sync whenever user returns to dashboard tab
-        const handleFocus = () => {
-            pullLatest();
-        };
-        window.addEventListener('focus', handleFocus);
-        // 3. Background periodic sync every 15 seconds
-        const interval = setInterval(pullLatest, 15000);
-        return () => {
-            isCancelled = true;
-            window.removeEventListener('focus', handleFocus);
-            clearInterval(interval);
-        };
     }, []);
     // Record Drawer State
     const [activeDrawerRecord, setActiveDrawerRecord] = useState(null);
@@ -357,7 +303,7 @@ export const App = () => {
         if (moduleConfig) {
             const dataKey = MODULE_DATA_KEY_MAP[currentRoute];
             const records = dataKey ? db[dataKey] || [] : [];
-            return (<GenericModulePage key={currentRoute} moduleConfig={moduleConfig} data={records} allStudents={db.students} allSessions={db.sessions} allAttendance={db.attendance} allCareerProfiles={db.careerProfiles} allAssessmentAttempts={db.assessmentAttempts} allCompanies={db.companies} allOpportunities={db.opportunities} userRole={session.user.role} onRowClick={(rec) => handleRowClick(rec, moduleConfig)} onStudentClick={handleStudentClick} onRelatedClick={handleRelatedClick} onUploadClick={() => {
+            return (<GenericModulePage key={currentRoute} moduleConfig={moduleConfig} data={records} allStudents={db.students} allStudentFiles={db.studentFiles} allSessions={db.sessions} allAttendance={db.attendance} allCareerProfiles={db.careerProfiles} allAssessmentAttempts={db.assessmentAttempts} allCompanies={db.companies} allOpportunities={db.opportunities} userRole={session.user.role} onRowClick={(rec) => handleRowClick(rec, moduleConfig)} onStudentClick={handleStudentClick} onRelatedClick={handleRelatedClick} onUploadClick={() => {
                     setUploadDefaultModule(moduleConfig.id);
                     setIsUploadOpen(true);
                 }} onAddRecord={handleAddRecord} onEditRecord={handleEditRecord} onDeleteRecord={handleDeleteRecord} onUpsertAttendance={handleUpsertAttendance} onAddSessionColumn={handleAddSessionColumn}/>);

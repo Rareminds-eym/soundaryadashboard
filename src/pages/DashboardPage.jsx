@@ -513,71 +513,86 @@ export const DashboardPage = ({ db, onNavigateModule, onStudentClick, }) => {
       {/* Bottom Grid: Recent Offers & Upcoming Sessions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Offers & Highlights */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900">Recent Campus Placement Offers</h3>
-            <span className="text-xs text-slate-400">Batch 2024–26</span>
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[420px]">
+          <div className="flex items-center justify-between shrink-0 mb-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Recent Campus Placement Offers</h3>
+              <span className="text-xs text-slate-400">Batch 2024–26 • {db.applications.filter(a => a['Current Stage'] === 'Offered' || a['Offer Response'] === 'Accepted').length} Offers</span>
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {db.applications.filter(a => a['Current Stage'] === 'Offered' || a['Offer Response'] === 'Accepted').length === 0 ? (<div className="py-8 text-center text-xs text-slate-400">
+          <div className="divide-y divide-slate-100 overflow-y-auto pr-2 flex-1 scrollbar-thin">
+            {db.applications.filter(a => a['Current Stage'] === 'Offered' || a['Offer Response'] === 'Accepted').length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
                 No placement offers recorded yet for Batch 2024–26. Offers will appear here as drive results are confirmed.
-              </div>) : (db.applications
-            .filter(a => a['Current Stage'] === 'Offered' || a['Offer Response'] === 'Accepted')
-            .slice(0, 4)
-            .map(app => {
-            const student = db.students.find(s => s['Student ID'] === app['Student ID']);
-            const opp = db.opportunities.find(o => o['Opportunity ID'] === app['Opportunity ID']);
-            const comp = db.companies.find(c => c['Company ID'] === opp?.['Company ID']);
-            return (<div key={app['Application ID']} className="py-3 flex items-center justify-between">
-                      <div>
-                        <button onClick={() => onStudentClick(app['Student ID'])} className="text-xs font-bold text-slate-900 hover:text-blue-600 transition-colors text-left block">
-                          {student?.['Full Name'] || app['Student ID']}
+              </div>
+            ) : (
+              db.applications
+                .filter(a => a['Current Stage'] === 'Offered' || a['Offer Response'] === 'Accepted')
+                .map(app => {
+                  const student = db.students.find(s => s['Student ID'] === app['Student ID']);
+                  const opp = db.opportunities.find(o => o['Opportunity ID'] === app['Opportunity ID']);
+                  const comp = db.companies.find(c => c['Company ID'] === opp?.['Company ID']) || { 'Company Name': app['Company Name'] };
+                  const ctcDisplay = app['Offered CTC'] > 0 
+                    ? formatINR(app['Offered CTC']) 
+                    : (opp?.['Total CTC'] > 0 ? formatINR(opp['Total CTC']) : 'Compensation Awaited');
+                  return (
+                    <div key={app['Application ID']} className="py-3 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded-lg transition-colors">
+                      <div className="min-w-0 pr-3">
+                        <button onClick={() => onStudentClick(app['Student ID'])} className="text-xs font-bold text-slate-900 hover:text-blue-600 transition-colors text-left block truncate">
+                          {student?.['Full Name'] || app['Student Name'] || app['Student ID']}
                         </button>
-                        <div className="text-[11px] text-slate-500 mt-0.5">
-                          {opp?.['Role Title']} • <strong className="text-slate-700">{comp?.['Company Name']}</strong>
+                        <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                          {opp?.['Role Title'] || 'Associate'} • <strong className="text-slate-700">{comp?.['Company Name'] || app['Company Name']}</strong>
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <span className="font-mono text-xs font-bold text-emerald-700 block">
-                          {formatINR(app['Offered CTC'])}
+                          {ctcDisplay}
                         </span>
-                        <StatusBadge value={app['Offer Response']} showDot={false} className="mt-1"/>
+                        <StatusBadge value={app['Offer Response'] || 'Pending'} showDot={false} className="mt-1"/>
                       </div>
-                    </div>);
-        }))}
+                    </div>
+                  );
+                })
+            )}
           </div>
         </div>
 
         {/* Training Delivery Status */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900">Completed & Upcoming Sessions</h3>
-            <button onClick={() => onNavigateModule('sessions')} className="text-xs font-semibold text-blue-600 hover:text-blue-800">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col h-[420px]">
+          <div className="flex items-center justify-between shrink-0 mb-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Completed & Upcoming Sessions</h3>
+              <span className="text-xs text-slate-400">{db.sessions.length} Training Sessions</span>
+            </div>
+            <button onClick={() => onNavigateModule('sessions')} className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
               Training Calendar →
             </button>
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {db.sessions.slice(0, 4).map(ses => (<div key={ses['Session ID']} className="py-3 flex items-center justify-between">
-                <div>
+          <div className="divide-y divide-slate-100 overflow-y-auto pr-2 flex-1 scrollbar-thin">
+            {db.sessions.map(ses => (
+              <div key={ses['Session ID']} className="py-3 flex items-center justify-between hover:bg-slate-50/50 px-1 rounded-lg transition-colors">
+                <div className="min-w-0 pr-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                    <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
                       {ses['Session ID']}
                     </span>
-                    <span className="text-xs font-semibold text-slate-800">{ses['Session Topic']}</span>
+                    <span className="text-xs font-semibold text-slate-800 truncate">{ses['Session Topic']}</span>
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
+                  <div className="text-[11px] text-slate-500 mt-0.5 truncate">
                     Trainer: {ses['Trainer']} • {ses['Programme']} ({ses['Training Stream/Group']})
                   </div>
                 </div>
 
-                <div className="text-right flex-shrink-0">
+                <div className="text-right shrink-0">
                   <StatusBadge value={ses['Session Status']}/>
                   <span className="text-[10px] text-slate-400 block mt-1">{ses['Planned Date']}</span>
                 </div>
-              </div>))}
+              </div>
+            ))}
           </div>
         </div>
       </div>

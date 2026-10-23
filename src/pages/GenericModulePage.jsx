@@ -10,9 +10,9 @@ import { AttendanceMatrixView } from '@/components/common/AttendanceMatrixView';
 import { AssessmentGroupedView } from '@/components/common/AssessmentGroupedView';
 import { StudentFilesGroupedView } from '@/components/common/StudentFilesGroupedView';
 import { StudentSubmissionsGroupedView } from '@/components/common/StudentSubmissionsGroupedView';
-import { Table, Calendar as CalendarIcon, Kanban, Clock, LayoutGrid, List, Layers, Building2, MapPin, ExternalLink, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Table, Calendar as CalendarIcon, Kanban, Clock, LayoutGrid, List, Layers, Building2, MapPin, ExternalLink, ChevronLeft, ChevronRight, Sparkles, Edit3 } from 'lucide-react';
 import { formatINR } from '@/utils/formatters';
-export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSessions = [], allAttendance = [], allCareerProfiles = [], allAssessmentAttempts = [], allCompanies = [], allOpportunities = [], userRole, onRowClick, onStudentClick, onRelatedClick, onUploadClick, onAddRecord, onEditRecord, onDeleteRecord, onUpsertAttendance, onAddSessionColumn, }) => {
+export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStudentFiles = [], allSessions = [], allAttendance = [], allCareerProfiles = [], allAssessmentAttempts = [], allCompanies = [], allOpportunities = [], userRole, onRowClick, onStudentClick, onRelatedClick, onUploadClick, onAddRecord, onEditRecord, onDeleteRecord, onUpsertAttendance, onAddSessionColumn, }) => {
     const isReadOnly = userRole === 'COLLEGE_VIEWER';
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -81,7 +81,8 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
         }
     };
     const handleFormSave = (record) => {
-        if (editingRecord) {
+        const isActualEdit = Boolean(editingRecord && editingRecord[moduleConfig.primaryId]);
+        if (isActualEdit) {
             // Edit mode
             const primaryValue = editingRecord[moduleConfig.primaryId];
             if (onEditRecord) {
@@ -135,6 +136,22 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
                         matches = true;
                     }
                 }
+                if (!matches && record['Opportunity ID']) {
+                    const opp = allOpportunities.find(o => o['Opportunity ID'] === record['Opportunity ID']);
+                    if (opp) {
+                        const compName = String(opp['Company Name'] || '').toLowerCase();
+                        const roleTitle = String(opp['Role Title'] || opp['Role'] || '').toLowerCase();
+                        if (compName.includes(query) || roleTitle.includes(query)) {
+                            matches = true;
+                        }
+                    }
+                }
+                if (!matches && record['Company ID']) {
+                    const compName = companyLookupMap.get(record['Company ID']);
+                    if (compName && compName.toLowerCase().includes(query)) {
+                        matches = true;
+                    }
+                }
                 if (!matches)
                     return false;
             }
@@ -183,6 +200,16 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
                 }
                 else if (quickCategoryFilter === 'APPLIED') {
                     // keeps all applications
+                }
+                else if (quickCategoryFilter === 'REJECTED') {
+                    if (record['Current Stage'] !== 'Rejected' && record['Final Outcome'] !== 'Rejected') {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'ON_HOLD') {
+                    if (record['Current Stage'] !== 'On Hold') {
+                        return false;
+                    }
                 }
                 else if (quickCategoryFilter === 'AWAITING_FEEDBACK') {
                     if (record['Company Name'] === 'Not Mapped' || ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
@@ -787,7 +814,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
                 setSearchQuery('');
                 setFilters({});
                 setQuickCategoryFilter(null);
-            }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length}/>)}
+            }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length} placeholder={moduleConfig.id === 'applications' ? 'Search by Student Name, Company Name, Application ID, Opportunity ID...' : undefined}/>)}
 
       {/* Main View: Standard Full-Field Data Table */}
       {viewMode === 'table' && (<DataTable columns={moduleConfig.columns} visibleColumns={visibleColumns} data={filteredData} primaryKey={moduleConfig.primaryId} allStudents={allStudents} allOpportunities={allOpportunities} onRowClick={onRowClick} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick} onEditRow={isReadOnly ? undefined : handleEditRow} onDeleteRow={isReadOnly ? undefined : handleDeleteRow} onFilePreview={moduleConfig.id === 'student-files' ? (rec) => setPreviewFile(rec) : undefined} moduleTitle={moduleConfig.title}/>)}
@@ -928,7 +955,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
         </div>)}
 
       {/* Add / Edit Record Modal */}
-      <RecordFormModal isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setEditingRecord(null); }} moduleConfig={moduleConfig} existingRecord={editingRecord} onSave={handleFormSave}/>
+      <RecordFormModal isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setEditingRecord(null); }} moduleConfig={moduleConfig} existingRecord={editingRecord} onSave={handleFormSave} allStudents={allStudents} allStudentFiles={allStudentFiles} allCompanies={allCompanies} allOpportunities={allOpportunities} allRecords={data}/>
 
       {/* File Preview Modal (student-files only) */}
       {moduleConfig.id === 'student-files' && (<FilePreviewModal isOpen={Boolean(previewFile)} onClose={() => setPreviewFile(null)} fileRecord={previewFile} onStudentClick={onStudentClick}/>)}
@@ -961,41 +988,170 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allSes
         </div>)}
 
       {/* Alternative View 2: Pipeline Kanban View for 12 Applications */}
-      {viewMode === 'kanban' && moduleConfig.id === 'applications' && (<div className="grid grid-cols-1 md:grid-cols-4 gap-4 overflow-x-auto pb-4">
-          {['Applied', 'Shortlisted', 'Interview', 'Offered'].map(stage => {
-                const stageApps = filteredData.filter(a => a['Current Stage'] === stage);
-                return (<div key={stage} className="bg-slate-100/80 rounded-2xl p-4 border border-slate-200/80 space-y-3 min-w-[260px]">
+      {viewMode === 'kanban' && moduleConfig.id === 'applications' && (
+        <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+          {[
+            { stage: 'Applied', color: 'border-slate-200 bg-slate-50/80', badge: 'bg-slate-200 text-slate-700' },
+            { stage: 'Shortlisted', color: 'border-indigo-200 bg-indigo-50/40', badge: 'bg-indigo-100 text-indigo-700' },
+            { stage: 'Interview', color: 'border-purple-200 bg-purple-50/40', badge: 'bg-purple-100 text-purple-700' },
+            { stage: 'Offered', color: 'border-emerald-200 bg-emerald-50/40', badge: 'bg-emerald-100 text-emerald-700' },
+            { stage: 'On Hold', color: 'border-amber-200 bg-amber-50/40', badge: 'bg-amber-100 text-amber-700' },
+            { stage: 'Rejected', color: 'border-rose-200 bg-rose-50/40', badge: 'bg-rose-100 text-rose-700' },
+          ].map(({ stage, color, badge }) => {
+            const stageApps = filteredData.filter(a => {
+              if (stage === 'Rejected') {
+                return a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected';
+              }
+              if (stage === 'On Hold') {
+                return a['Current Stage'] === 'On Hold';
+              }
+              return a['Current Stage'] === stage && a['Current Stage'] !== 'Rejected' && a['Final Outcome'] !== 'Rejected';
+            });
+
+            return (
+              <div key={stage} className={`rounded-2xl p-4 border space-y-3 min-w-[280px] max-w-[320px] flex-shrink-0 ${color}`}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{stage}</span>
-                  <span className="text-xs font-bold bg-white text-slate-700 px-2 py-0.5 rounded-full shadow-xs">
-                    {stageApps.length}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{stage}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs ${badge}`}>
+                      {stageApps.length}
+                    </span>
+                  </div>
+
+                  {!isReadOnly && onAddRecord && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRecord({
+                          'Current Stage': stage,
+                          ...(stage === 'Rejected' ? { 'Final Outcome': 'Rejected' } : {}),
+                          ...(stage === 'Offered' ? { 'Final Outcome': 'Offer Extended' } : {})
+                        });
+                        setIsFormOpen(true);
+                      }}
+                      className="text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-white hover:bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs transition-colors"
+                      title={`Add candidate directly to ${stage}`}
+                    >
+                      + Add
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-2.5">
-                  {stageApps.map(app => (<div key={app['Application ID']} onClick={() => onRowClick(app)} className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold text-blue-600">{app['Application ID']}</span>
-                        <StatusBadge value={app['Offer Response'] || app['Eligibility Checked']} showDot={false}/>
-                      </div>
-                      <button onClick={(e) => {
+                <div className="space-y-2.5 max-h-[68vh] overflow-y-auto pr-1">
+                  {stageApps.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400 bg-white/60 rounded-xl border border-dashed border-slate-200">
+                      No candidates in {stage}
+                    </div>
+                  ) : (
+                    stageApps.map(app => (
+                      <div
+                        key={app['Application ID']}
+                        onClick={() => onRowClick(app)}
+                        className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-2 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-xs font-bold text-blue-600">{app['Application ID']}</span>
+                          <div className="flex items-center gap-1.5">
+                            <StatusBadge
+                              value={
+                                stage === 'Rejected'
+                                  ? 'Rejected'
+                                  : stage === 'On Hold'
+                                  ? 'On Hold'
+                                  : app['Offer Response'] || app['Eligibility Checked']
+                              }
+                              showDot={false}
+                            />
+                            {!isReadOnly && onEditRecord && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditRow(app);
+                                }}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                title="Edit this application"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
                             e.stopPropagation();
                             onStudentClick(app['Student ID']);
-                        }} className="text-xs font-bold text-slate-900 hover:text-blue-600 block text-left">
-                        {app['Student Name'] || app['Student ID']}
-                      </button>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-semibold text-slate-700">{app['Company Name'] || app['Opportunity ID']}</span>
-                        <span className="font-mono text-[10px] text-slate-400">{app['Student ID']}</span>
+                          }}
+                          className="text-xs font-bold text-slate-900 group-hover:text-blue-600 block text-left transition-colors"
+                        >
+                          {app['Student Name'] || app['Student ID']}
+                        </button>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="font-semibold text-slate-700">{app['Company Name'] || app['Opportunity ID']}</span>
+                          <span className="font-mono text-[10px] text-slate-400">{app['Student ID']}</span>
+                        </div>
+
+                        {/* Offered CTC display */}
+                        {app['Offered CTC'] > 0 && stage !== 'Rejected' && (
+                          <div className="text-xs font-mono font-bold text-emerald-700 pt-1 border-t border-slate-100 flex items-center justify-between">
+                            <span>Offered CTC:</span>
+                            <span>{formatINR(app['Offered CTC'])}</span>
+                          </div>
+                        )}
+
+                        {/* Rejected reason indicator */}
+                        {stage === 'Rejected' && (
+                          <div className="text-[11px] text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-100 space-y-0.5">
+                            <span className="font-semibold text-[10px] uppercase tracking-wider block text-rose-500">Rejection Reason:</span>
+                            <span>{app['Rejection/Withdrawal Reason'] || 'Not Selected in Technical/HR round'}</span>
+                          </div>
+                        )}
+
+                        {/* On Hold reason indicator */}
+                        {stage === 'On Hold' && (
+                          <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200/80 space-y-0.5">
+                            <span className="font-semibold text-[10px] uppercase tracking-wider block text-amber-600">On Hold Status:</span>
+                            <span>{app['Rejection/Withdrawal Reason'] || app['Next Action'] || 'To be discussed internally'}</span>
+                          </div>
+                        )}
+
+                        {/* Next Action note if present */}
+                        {app['Next Action'] && stage !== 'Rejected' && stage !== 'On Hold' && (
+                          <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 truncate">
+                            <span className="font-medium text-slate-700">Next: </span>
+                            {app['Next Action']}
+                          </div>
+                        )}
+
+                        {/* Edit Action Bar */}
+                        {!isReadOnly && onEditRecord && (
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditRow(app);
+                              }}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/80 px-2.5 py-1 rounded-lg border border-blue-200/60 transition-colors shadow-2xs"
+                              title="Edit Application Stage, Details & Status"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {app['Offered CTC'] > 0 && (<div className="text-xs font-mono font-bold text-emerald-700 pt-1 border-t border-slate-100">
-                          {formatINR(app['Offered CTC'])}
-                        </div>)}
-                    </div>))}
+                    ))
+                  )}
                 </div>
-              </div>);
-            })}
-        </div>)}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Alternative View 3: Chronological Timeline View for 13 Application History */}
       {viewMode === 'timeline' && moduleConfig.id === 'application-history' && (<div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">

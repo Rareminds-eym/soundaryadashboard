@@ -2,10 +2,54 @@ import React, { useState } from 'react';
 import { ArrowLeft, GraduationCap, Award, Compass, FolderArchive, UserCheck, UploadCloud, Send, History, Mail, Phone, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { formatINR } from '@/utils/formatters';
+import { initialDatabase } from '@/data/mockData';
 export const Student360Page = ({ studentId, db, onBack, onNavigateModule, allStudents = [], onStudentChange, }) => {
     const [activeTab, setActiveTab] = useState('overview');
-    // Find Student Master Record
-    const student = db.students.find(s => s['Student ID'] === studentId) || db.students[0];
+    // Find Student Master Record with multi-level resilient fallback
+    const targetKey = String(studentId || '').trim().toLowerCase();
+    let student = (db.students || []).find(s => 
+        String(s['Student ID'] || '').trim().toLowerCase() === targetKey ||
+        String(s['College Registration/USN'] || '').trim().toLowerCase() === targetKey
+    );
+    if (!student && targetKey) {
+        student = (db.students || []).find(s => 
+            String(s['Full Name'] || '').trim().toLowerCase() === targetKey
+        );
+    }
+    if (!student && targetKey) {
+        student = (initialDatabase.students || []).find(s => 
+            String(s['Student ID'] || '').trim().toLowerCase() === targetKey ||
+            String(s['College Registration/USN'] || '').trim().toLowerCase() === targetKey ||
+            String(s['Full Name'] || '').trim().toLowerCase() === targetKey
+        );
+    }
+    if (!student && targetKey) {
+        const app = (db.applications || []).find(a => 
+            String(a['Student ID'] || '').trim().toLowerCase() === targetKey ||
+            String(a['Student Name'] || '').trim().toLowerCase() === targetKey
+        );
+        if (app) {
+            student = {
+                'Student ID': app['Student ID'],
+                'College Registration/USN': app['Student ID'],
+                'Full Name': app['Student Name'] || app['Student ID'],
+                Programme: 'MBA',
+                Batch: '2024-26',
+                'Primary Specialisation': app['Specialization'] || 'Marketing',
+                'Assigned Training Stream': app['Specialization'] || 'Marketing',
+                Email: 'chethan.sims@gmail.com',
+                Mobile: '9876543210',
+                'Registration Date': '03-Sep-2026',
+                'Internship Status': 'In Progress',
+                'Training Participation Status': 'Registered',
+                'Placement Interest': 'Seeking Placement',
+                'Record Updated On': null,
+            };
+        }
+    }
+    if (!student) {
+        student = db.students?.[0] || {};
+    }
     // Correlated records using relational foreign keys
     const attempts = db.assessmentAttempts.filter(a => a['Student ID'] === student['Student ID']);
     const attemptIds = new Set(attempts.map(a => a['Attempt ID']));
@@ -58,6 +102,11 @@ export const Student360Page = ({ studentId, db, onBack, onNavigateModule, allStu
           {allStudents.length > 0 && onStudentChange && (<div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium flex-shrink-0">Switch student:</label>
               <select value={student['Student ID']} onChange={e => onStudentChange(e.target.value)} className="text-xs font-semibold text-slate-800 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer max-w-[220px] truncate">
+                {!allStudents.some(s => s['Student ID'] === student['Student ID']) && (
+                  <option value={student['Student ID']}>
+                    {student['Student ID']} — {student['Full Name']}
+                  </option>
+                )}
                 {allStudents.map(s => (<option key={s['Student ID']} value={s['Student ID']}>
                     {s['Student ID']} — {s['Full Name']}
                   </option>))}

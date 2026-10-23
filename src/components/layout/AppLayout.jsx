@@ -36,7 +36,7 @@ export const AppLayout = ({ currentRoute, onNavigate, children, counts, allStude
       </div>
 
       {/* Global Record Detail Drawer */}
-      {activeDrawerRecord && activeDrawerModule && onCloseDrawer && (<RecordDrawer isOpen={true} onClose={onCloseDrawer} record={activeDrawerRecord} moduleConfig={activeDrawerModule} allOpportunities={allOpportunities} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick}/>)}
+      {activeDrawerRecord && activeDrawerModule && onCloseDrawer && (<RecordDrawer isOpen={true} onClose={onCloseDrawer} record={activeDrawerRecord} moduleConfig={activeDrawerModule} allOpportunities={allOpportunities} allStudents={allStudents} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick}/>)}
 
       {/* Global Upload Data Modal */}
       {isUploadOpen && onCloseUpload && (<UploadModal isOpen={true} onClose={onCloseUpload} defaultModuleId={uploadDefaultModule} onImportSuccess={onImportSuccess}/>)}

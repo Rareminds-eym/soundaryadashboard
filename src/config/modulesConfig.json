@@ -2094,7 +2094,7 @@
       },
       {
         "key": "Next Action",
-        "label": "Next Action",
+        "label": "Next Action (Interview Round)",
         "type": "string",
         "isPrimary": false,
         "isForeignKey": false,
@@ -2114,7 +2114,7 @@
       },
       {
         "key": "Next Action Date",
-        "label": "Next Action Date",
+        "label": "Next Action Date (Interview Date)",
         "type": "date",
         "isPrimary": false,
         "isForeignKey": false,

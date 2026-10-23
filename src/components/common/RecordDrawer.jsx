@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ExternalLink, Copy, Check, FileText, Building2, Briefcase, MapPin, IndianRupee, Calendar, CheckCircle2, Sparkles, BookOpen, GraduationCap } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { formatINR } from '@/utils/formatters';
-export const RecordDrawer = ({ isOpen, onClose, record, moduleConfig, allOpportunities = [], onStudentClick, onRelatedClick, }) => {
+export const RecordDrawer = ({ isOpen, onClose, record, moduleConfig, allOpportunities = [], allStudents = [], onStudentClick, onRelatedClick, }) => {
     const [copiedKey, setCopiedKey] = React.useState(null);
     if (!isOpen || !record)
         return null;
@@ -24,12 +24,35 @@ export const RecordDrawer = ({ isOpen, onClose, record, moduleConfig, allOpportu
         if (val === undefined || val === null || val === '') {
             return <span className="text-slate-400 font-mono text-xs italic">Not Provided</span>;
         }
-        if (col.key === 'Student ID' && onStudentClick) {
-            return (<button onClick={() => onStudentClick(val)} className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md transition-colors">
-          <span>{val}</span>
-          <ExternalLink className="w-3 h-3"/>
-          <span className="text-[10px] font-normal text-blue-500">(Open 360)</span>
-        </button>);
+        if (col.key === 'Student ID') {
+            const studentObj = allStudents?.find(s => s['Student ID'] === val || s['College Registration/USN'] === val);
+            const studentName = studentObj ? (studentObj['Full Name'] || studentObj['Student Name']) : (record['Full Name'] || record['Student Name']);
+            return (<div className="flex flex-col gap-1 items-start">
+              {studentName && <span className="text-xs font-bold text-slate-900 leading-tight">{studentName}</span>}
+              {onStudentClick ? (<button onClick={() => onStudentClick(val)} className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 px-2.5 py-1 rounded-md transition-colors">
+                  <span>{val}</span>
+                  <ExternalLink className="w-3 h-3"/>
+                  <span className="text-[10px] font-normal text-blue-500">(Open 360)</span>
+                </button>) : (<span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{val}</span>)}
+            </div>);
+        }
+        if (col.key === 'Opportunity ID') {
+            let compName = String(record['Company Name'] || record['Company'] || '');
+            if (!compName && allOpportunities) {
+                const opp = allOpportunities.find(o => o['Opportunity ID'] === val);
+                if (opp) compName = opp['Company Name'] || '';
+            }
+            if (compName.toLowerCase() === 'radall')
+                compName = 'Radiall';
+            const displayOppId = String(val).replace(/RADALL/g, 'RADIALL');
+            return (<div className="flex flex-col gap-1 items-start">
+              {compName && <span className="text-xs font-bold text-slate-900 leading-tight">{compName}</span>}
+              {onRelatedClick ? (<button onClick={() => onRelatedClick('opportunities', displayOppId)} className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-md transition-colors">
+                  <span>{displayOppId}</span>
+                  <ExternalLink className="w-3 h-3"/>
+                  <span className="text-[10px] font-normal text-indigo-500">(View Opportunity)</span>
+                </button>) : (<span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{displayOppId}</span>)}
+            </div>);
         }
         if (col.isForeignKey && col.targetModule && onRelatedClick) {
             return (<button onClick={() => onRelatedClick(col.targetModule, val)} className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-md transition-colors">

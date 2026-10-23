@@ -26,12 +26,12 @@ export const Topbar = ({ onSearchSelect, onNavigate, allStudents = [], allCompan
     const matchingStudents = globalSearch.trim()
         ? allStudents.filter(s => s['Full Name']?.toLowerCase().includes(globalSearch.toLowerCase()) ||
             s['Student ID']?.toLowerCase().includes(globalSearch.toLowerCase()) ||
-            s['College Registration/USN']?.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 5)
+            s['College Registration/USN']?.toLowerCase().includes(globalSearch.toLowerCase()))
         : [];
     const matchingCompanies = globalSearch.trim()
         ? allCompanies.filter(c => c['Company Name']?.toLowerCase().includes(globalSearch.toLowerCase()) ||
             c['Company ID']?.toLowerCase().includes(globalSearch.toLowerCase()) ||
-            c['Industry']?.toLowerCase().includes(globalSearch.toLowerCase())).slice(0, 4)
+            c['Industry']?.toLowerCase().includes(globalSearch.toLowerCase()))
         : [];
     return (<header className="h-16 bg-white border-b border-slate-200/80 px-3 sm:px-6 flex items-center justify-between z-20 sticky top-0 shadow-xs">
       <div className="flex items-center gap-1.5 sm:gap-3 flex-1 min-w-0 mr-2">
@@ -51,7 +51,7 @@ export const Topbar = ({ onSearchSelect, onNavigate, allStudents = [], allCompan
           </div>
 
           {/* Global Search Results Dropdown */}
-          {showSearchDropdown && globalSearch.trim() && (<div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-50">
+          {showSearchDropdown && globalSearch.trim() && (<div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-2xl border border-slate-200 p-2 z-50 max-h-96 overflow-y-auto">
             {matchingStudents.length === 0 && matchingCompanies.length === 0 ? (<div className="p-4 text-center text-xs text-slate-400">
                 No matching students or companies found for "{globalSearch}".
               </div>) : (<div className="space-y-3">
