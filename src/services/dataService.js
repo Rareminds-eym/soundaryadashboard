@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.10.22_rareminds_official_75_students_v55';
+const SCHEMA_VERSION = 'v2026.10.27_rareminds_placement_responses_v56';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v55';
+const STORAGE_KEY = 'rareminds_portal_real_db_v56';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -197,6 +197,14 @@ export function sanitizeDatabase(database) {
                 updated['Offered CTC'] = 400000;
                 updated['Offered Fixed Pay'] = 360000;
                 updated['Offered Variable Pay'] = 40000;
+            }
+            if (updated['Application ID'] === 'APP-0089' || (updated['Student ID'] === 'P03KU24M015051' && updated['Company Name'] === 'Rareminds')) {
+                updated['Offer Response'] = 'On Hold';
+                updated['Current Stage'] = 'Offered';
+            }
+            if (['APP-0044', 'APP-0066', 'APP-0070', 'APP-0076'].includes(updated['Application ID'])) {
+                updated['Offer Response'] = 'Accepted';
+                updated['Current Stage'] = 'Offered';
             }
             return updated;
         });
