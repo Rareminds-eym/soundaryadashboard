@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.10.31_rareminds_full_attendance_v60';
+const SCHEMA_VERSION = 'v2026.11.03_rareminds_sync_assessment_v62';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v60';
+const STORAGE_KEY = 'rareminds_portal_real_db_v62';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -113,6 +113,34 @@ export function sanitizeDatabase(database) {
                 'Assigned Training Stream': normalizeStreamName(updated['Assigned Training Stream'], updated.Programme, updated['Primary Specialisation']),
             };
         });
+    }
+    if (Array.isArray(database.assessmentAttempts)) {
+        const attemptMap = new Map();
+        (initialDatabase.assessmentAttempts || []).forEach(a => {
+            if (a['Attempt ID'])
+                attemptMap.set(a['Attempt ID'], a);
+        });
+        database.assessmentAttempts.forEach(a => {
+            if (a['Attempt ID']) {
+                const existing = attemptMap.get(a['Attempt ID']) || {};
+                attemptMap.set(a['Attempt ID'], { ...existing, ...a });
+            }
+        });
+        database.assessmentAttempts = Array.from(attemptMap.values());
+    }
+    if (Array.isArray(database.assessmentScores)) {
+        const scoreMap = new Map();
+        (initialDatabase.assessmentScores || []).forEach(s => {
+            if (s['Score ID'])
+                scoreMap.set(s['Score ID'], s);
+        });
+        database.assessmentScores.forEach(s => {
+            if (s['Score ID']) {
+                const existing = scoreMap.get(s['Score ID']) || {};
+                scoreMap.set(s['Score ID'], { ...existing, ...s });
+            }
+        });
+        database.assessmentScores = Array.from(scoreMap.values());
     }
     if (Array.isArray(database.companies)) {
         if (database.companies.length > 0 && (!database.companies[0]['Company ID'] || !database.companies[0]['Company Name'])) {
