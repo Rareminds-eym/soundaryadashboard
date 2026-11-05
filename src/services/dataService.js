@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.11.03_rareminds_applications_updated_v63';
+const SCHEMA_VERSION = 'v2026.11.05_app0063_rej_v71';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v63';
+const STORAGE_KEY = 'rareminds_portal_real_db_v71';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -159,7 +159,9 @@ export function sanitizeDatabase(database) {
                     defaultJdMap.set(c['Company ID'], c['JD']);
             }
         });
-        database.companies = database.companies.map(c => ({
+        database.companies = database.companies
+            .filter(c => c['Company ID'] !== 'COMP-646' && c['Company Name'] !== 'Mona Cream Jobs')
+            .map(c => ({
             ...c,
             Website: null,
             'Company Name': c['Company Name'] === 'Radall' ? 'Radiall' : c['Company Name'],
@@ -177,7 +179,9 @@ export function sanitizeDatabase(database) {
                 database.opportunities.unshift(vcmOpp);
             }
         }
-        database.opportunities = database.opportunities.map(o => ({
+        database.opportunities = database.opportunities
+            .filter(o => o['Opportunity ID'] !== 'EXP-MBA-MONA' && o['Company Name'] !== 'Mona Cream Jobs')
+            .map(o => ({
             ...o,
             'Company Name': o['Company Name'] === 'Radall' ? 'Radiall' : o['Company Name'],
             'Opportunity ID': o['Opportunity ID'] === 'EXP-MBA-RADALL' ? 'EXP-MBA-RADIALL' : o['Opportunity ID'],
@@ -192,12 +196,16 @@ export function sanitizeDatabase(database) {
         });
         database.applications.forEach((a) => {
             if (a['Application ID']) {
-                const existing = appMap.get(a['Application ID']) || {};
-                appMap.set(a['Application ID'], { ...existing, ...a });
+                const masterRec = appMap.get(a['Application ID']);
+                if (masterRec) {
+                    appMap.set(a['Application ID'], { ...a, ...masterRec });
+                } else {
+                    appMap.set(a['Application ID'], a);
+                }
             }
         });
         database.applications = Array.from(appMap.values())
-            .filter(a => a['Student ID'] !== 'P03KU24M015037' && a['Application ID'] !== 'APP-0037')
+            .filter(a => a['Student ID'] !== 'P03KU24M015037' && a['Application ID'] !== 'APP-0037' && a['Company Name'] !== 'Jp Morgan' && a['Opportunity ID'] !== 'EXP-MBA-JPM' && a['Company Name'] !== 'Mona Cream Jobs' && a['Opportunity ID'] !== 'EXP-MBA-MONA')
             .map(a => {
             let updated = {
                 ...a,
@@ -212,15 +220,45 @@ export function sanitizeDatabase(database) {
                 updated['Offered Fixed Pay'] = 360000;
                 updated['Offered Variable Pay'] = 40000;
             }
-            if (updated['Application ID'] === 'APP-0089' || (updated['Student ID'] === 'P03KU24M015051' && updated['Company Name'] === 'Rareminds')) {
-                updated['Offer Response'] = 'On Hold';
-                updated['Current Stage'] = 'Offered';
+            if (String(updated['Student ID'] || '').includes('S126') || updated['Specialization'] === 'Engineering' || updated['Specialization'] === 'Developers') {
+                updated['Specialization'] = 'MCA';
             }
-            if (['APP-0044', 'APP-0066', 'APP-0070', 'APP-0076'].includes(updated['Application ID'])) {
-                updated['Offer Response'] = 'Accepted';
-                updated['Current Stage'] = 'Offered';
+            if (updated['Application ID'] === 'APP-0063') {
+                updated['Current Stage'] = 'Rejected';
+                updated['Final Outcome'] = 'Rejected';
+                updated['Next Action'] = 'Closed';
+                updated['Rejection/Withdrawal Reason'] = 'Did not clear interview round';
             }
             return updated;
+        });
+    }
+    if (database.assessmentAttempts && !database.assessmentAttempts.some(a => a['Student ID'] === 'P04KU24M015060')) {
+        database.assessmentAttempts.push({
+            'Attempt ID': 'ATT-0568',
+            'Student ID': 'P04KU24M015060',
+            'Assessment Type': 'MBA Aptitude',
+            'Assessment Version': null,
+            'Assigned Date': '20-Aug-2026',
+            'Started Date': '28-Aug-2026',
+            'Completed Date': '28-Aug-2026',
+            'Completion Status': 'Completed',
+            'Overall Score': 38,
+            'Maximum Score': 50,
+            'Report File ID': null,
+        });
+    }
+    if (database.assessmentScores && !database.assessmentScores.some(s => s['Attempt ID'] === 'ATT-0568')) {
+        database.assessmentScores.push({
+            'Score ID': 'SCR-0554',
+            'Attempt ID': 'ATT-0568',
+            'Dimension/Competency': 'Overall Score',
+            'Raw Score': 38,
+            'Maximum Score': 50,
+            'Normalised Score': 76,
+            'Proficiency Band': 'Proficient',
+            'Assessment Stage': 'Final Evaluation',
+            Evaluator: 'Rareminds Assessment Team',
+            'Evaluation Date': '29-Aug-2026',
         });
     }
     return database;
