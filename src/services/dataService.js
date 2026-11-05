@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.10.27_rareminds_placement_responses_v56';
+const SCHEMA_VERSION = 'v2026.11.03_rareminds_applications_updated_v63';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v56';
+const STORAGE_KEY = 'rareminds_portal_real_db_v63';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -102,31 +102,45 @@ export function sanitizeDatabase(database) {
             });
         }
         database.students = Array.from(studentMap.values())
-            .filter(s => s['Student ID'] !== 'P03KU24M015063' &&
-            s['Full Name'] !== 'Rakshitha M R' &&
-            s['Student ID'] !== 'P03KU24M015012' &&
-            s['Full Name'] !== 'Harsha' &&
-            s['Student ID'] !== 'P03KU24M015086' &&
-            s['Full Name'] !== 'Likhitha B')
-            .map(s => ({
-            ...s,
-            'Assigned Training Stream': normalizeStreamName(s['Assigned Training Stream'], s.Programme, s['Primary Specialisation']),
-        }));
+            .map(s => {
+            const updated = { ...s };
+            if (updated['Student ID'] === 'P03KU24M015062') {
+                updated['Primary Specialisation'] = 'Business Analytics';
+                updated['Assigned Training Stream'] = 'Business Analyst';
+            }
+            return {
+                ...updated,
+                'Assigned Training Stream': normalizeStreamName(updated['Assigned Training Stream'], updated.Programme, updated['Primary Specialisation']),
+            };
+        });
     }
     if (Array.isArray(database.assessmentAttempts)) {
-        database.assessmentAttempts = database.assessmentAttempts.filter(a => a['Student ID'] !== 'P03KU24M015012' && a['Student ID'] !== 'P03KU24M015063');
+        const attemptMap = new Map();
+        (initialDatabase.assessmentAttempts || []).forEach(a => {
+            if (a['Attempt ID'])
+                attemptMap.set(a['Attempt ID'], a);
+        });
+        database.assessmentAttempts.forEach(a => {
+            if (a['Attempt ID']) {
+                const existing = attemptMap.get(a['Attempt ID']) || {};
+                attemptMap.set(a['Attempt ID'], { ...existing, ...a });
+            }
+        });
+        database.assessmentAttempts = Array.from(attemptMap.values());
     }
-    if (Array.isArray(database.careerProfiles)) {
-        database.careerProfiles = database.careerProfiles.filter(p => p['Student ID'] !== 'P03KU24M015012' && p['Student ID'] !== 'P03KU24M015063');
-    }
-    if (Array.isArray(database.studentFiles)) {
-        database.studentFiles = database.studentFiles.filter(f => f['Student ID'] !== 'P03KU24M015012' && f['Student ID'] !== 'P03KU24M015063');
-    }
-    if (Array.isArray(database.attendance)) {
-        database.attendance = database.attendance.filter(a => a['Student ID'] !== 'P03KU24M015012' && a['Student ID'] !== 'P03KU24M015063');
-    }
-    if (Array.isArray(database.studentSubmissions)) {
-        database.studentSubmissions = database.studentSubmissions.filter(s => s['Student ID'] !== 'P03KU24M015012' && s['Student ID'] !== 'P03KU24M015063');
+    if (Array.isArray(database.assessmentScores)) {
+        const scoreMap = new Map();
+        (initialDatabase.assessmentScores || []).forEach(s => {
+            if (s['Score ID'])
+                scoreMap.set(s['Score ID'], s);
+        });
+        database.assessmentScores.forEach(s => {
+            if (s['Score ID']) {
+                const existing = scoreMap.get(s['Score ID']) || {};
+                scoreMap.set(s['Score ID'], { ...existing, ...s });
+            }
+        });
+        database.assessmentScores = Array.from(scoreMap.values());
     }
     if (Array.isArray(database.companies)) {
         if (database.companies.length > 0 && (!database.companies[0]['Company ID'] || !database.companies[0]['Company Name'])) {
@@ -183,7 +197,7 @@ export function sanitizeDatabase(database) {
             }
         });
         database.applications = Array.from(appMap.values())
-            .filter(a => a['Student ID'] !== 'P03KU24M015037' && a['Student ID'] !== 'P03KU24M015012' && a['Application ID'] !== 'APP-0037')
+            .filter(a => a['Student ID'] !== 'P03KU24M015037' && a['Application ID'] !== 'APP-0037')
             .map(a => {
             let updated = {
                 ...a,
