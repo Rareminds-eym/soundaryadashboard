@@ -851,8 +851,18 @@
       },
       {
         "key": "Planned Date",
-        "label": "Planned Date",
+        "label": "Completed Date",
         "type": "date",
+        "isPrimary": false,
+        "isForeignKey": false,
+        "targetModule": null,
+        "options": null,
+        "filterable": false
+      },
+      {
+        "key": "Trainer",
+        "label": "Trainer Name",
+        "type": "string",
         "isPrimary": false,
         "isForeignKey": false,
         "targetModule": null,
@@ -927,16 +937,6 @@
         "key": "Planned Learning Hours",
         "label": "Planned Learning Hours",
         "type": "number",
-        "isPrimary": false,
-        "isForeignKey": false,
-        "targetModule": null,
-        "options": null,
-        "filterable": false
-      },
-      {
-        "key": "Trainer",
-        "label": "Trainer",
-        "type": "string",
         "isPrimary": false,
         "isForeignKey": false,
         "targetModule": null,
