@@ -482,13 +482,11 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
         else if (moduleConfig.id === 'applications' && data.length > 0) {
             const allApps = data;
             const shortlisted = allApps.filter(r => ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
-            const notMapped = allApps.filter(r => r['Company Name'] === 'Not Mapped').length;
             const awaitingFeedback = allApps.filter(r => r['Company Name'] !== 'Not Mapped' && !['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
             const shortlistPct = allApps.length > 0 ? Math.round((shortlisted / allApps.length) * 100) : 0;
             list.push(<KPICard key="1" title="Total Applications" value={allApps.length} iconName="Send" colorScheme="blue" subtext={quickCategoryFilter ? 'Click to show all' : 'Registered Candidates'} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null}/>);
             list.push(<KPICard key="2" title="Shortlisted Candidates" value={shortlisted} iconName="CheckCircle2" colorScheme="indigo" subtext={`${shortlistPct}% Selection Rate • Click to filter`} onClick={() => setQuickCategoryFilter(prev => prev === 'SHORTLISTED' ? null : 'SHORTLISTED')} isSelected={quickCategoryFilter === 'SHORTLISTED'}/>);
             list.push(<KPICard key="3" title="Awaiting Feedback" value={awaitingFeedback} iconName="Clock" colorScheme="amber" subtext="Corporate Drive Review • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'AWAITING_FEEDBACK' ? null : 'AWAITING_FEEDBACK')} isSelected={quickCategoryFilter === 'AWAITING_FEEDBACK'}/>);
-            list.push(<KPICard key="4" title="Not Mapped" value={notMapped} iconName="HelpCircle" colorScheme="rose" subtext="Screening Feedback • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'NOT_MAPPED' ? null : 'NOT_MAPPED')} isSelected={quickCategoryFilter === 'NOT_MAPPED'}/>);
         }
         else if (moduleConfig.id === 'commitments') {
             const accepted = filteredData.filter(r => r['Acceptance Status'] === 'Accepted').length;
@@ -609,7 +607,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
             </div>) : null}/>
 
       {/* KPI Cards Grid (when not in custom grouped view) */}
-      {summaryKPIs.length > 0 && viewMode !== 'grouped' && viewMode !== 'matrix' && (<div className={`grid grid-cols-1 sm:grid-cols-2 ${summaryKPIs.length >= 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
+      {summaryKPIs.length > 0 && viewMode !== 'grouped' && viewMode !== 'matrix' && (<div className={`grid grid-cols-1 sm:grid-cols-2 ${summaryKPIs.length >= 5 ? 'lg:grid-cols-5' : summaryKPIs.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
           {summaryKPIs}
         </div>)}
 
@@ -1179,7 +1177,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 line-clamp-1">{ses['Session Topic']}</h4>
-                  <p className="text-xs text-slate-500 mt-1">Planned Date: {ses['Planned Date'] || 'TBD'}</p>
+                  <p className="text-xs text-slate-500 mt-1">Completed Date: {ses['Planned Date'] || 'TBD'}</p>
                 </div>
                 <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
                   <span>{ses['Delivery Mode'] || ses['Trainer'] || 'Scheduled'}</span>
