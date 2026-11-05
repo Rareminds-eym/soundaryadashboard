@@ -2,13 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown, ExternalLink, Eye, ChevronLeft, ChevronRight, Pencil, Trash2, FileSearch } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { formatINR } from '@/utils/formatters';
-export const DataTable = ({ columns, visibleColumns, data, primaryKey, allStudents = [], allOpportunities = [], onRowClick, onStudentClick, onRelatedClick, onEditRow, onDeleteRow, onFilePreview, }) => {
+export const DataTable = ({ columns, visibleColumns, data, primaryKey, defaultSortKey, defaultSortDirection = 'asc', allStudents = [], allOpportunities = [], onRowClick, onStudentClick, onRelatedClick, onEditRow, onDeleteRow, onFilePreview, }) => {
     // Sort State
-    const [sortKey, setSortKey] = useState(primaryKey);
-    const [sortDirection, setSortDirection] = useState('asc');
+    const [sortKey, setSortKey] = useState(defaultSortKey !== undefined ? defaultSortKey : primaryKey);
+    const [sortDirection, setSortDirection] = useState(defaultSortDirection);
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+
+    // Sync sort state when defaultSortKey or primaryKey changes
+    React.useEffect(() => {
+        setSortKey(defaultSortKey !== undefined ? defaultSortKey : primaryKey);
+        setSortDirection(defaultSortDirection);
+        setCurrentPage(1);
+    }, [primaryKey, defaultSortKey, defaultSortDirection]);
     // Active visible column objects in original order (with fallback if stale)
     const activeCols = useMemo(() => {
         const matched = columns.filter(c => visibleColumns.includes(c.key));
@@ -38,6 +45,29 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, allStuden
                 return 1;
             if (valB === undefined || valB === null)
                 return -1;
+
+            // Custom recruitment pipeline sorting when sorting by Current Stage
+            if (sortKey === 'Current Stage') {
+                const stagePriority = {
+                    'joined': 1,
+                    'offered': 2,
+                    'accepted': 2,
+                    'shortlisted': 3,
+                    'interview': 4,
+                    'applied': 5,
+                    'screening': 5,
+                    'on hold': 6,
+                    'rejected': 7,
+                    'withdrawn': 7
+                };
+                const pA = stagePriority[String(valA).trim().toLowerCase()] ?? 99;
+                const pB = stagePriority[String(valB).trim().toLowerCase()] ?? 99;
+                if (pA !== pB) {
+                    return sortDirection === 'asc' ? pA - pB : pB - pA;
+                }
+                return String(a[primaryKey] || '').localeCompare(String(b[primaryKey] || ''));
+            }
+
             if (typeof valA === 'number' && typeof valB === 'number') {
                 return sortDirection === 'asc' ? valA - valB : valB - valA;
             }
@@ -164,9 +194,17 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, allStuden
         }
         // Currency Formatting
         if (col.type === 'currency') {
+            if (!rawVal || Number(rawVal) === 0) {
+                return <span className="text-slate-300 font-mono text-xs">—</span>;
+            }
+            if (col.key === 'Offered CTC') {
+                return (<span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
+                  {formatINR(rawVal)}
+                </span>);
+            }
             return (<span className="font-mono text-xs font-semibold text-slate-900">
-          {formatINR(rawVal)}
-        </span>);
+              {formatINR(rawVal)}
+            </span>);
         }
         // JD Column: Link to external JD or open Opportunity Details drawer
         if (col.key === 'JD' || col.key === 'JD URL' || col.key === 'JD Link') {

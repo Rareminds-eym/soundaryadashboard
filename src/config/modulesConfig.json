@@ -1993,6 +1993,23 @@
         "filterable": false
       },
       {
+        "key": "Specialization",
+        "label": "Stream / Specialization",
+        "type": "enum",
+        "isPrimary": false,
+        "isForeignKey": false,
+        "targetModule": null,
+        "options": [
+          "MBA",
+          "Marketing",
+          "Finance",
+          "HR",
+          "Business Analytics",
+          "MCA"
+        ],
+        "filterable": true
+      },
+      {
         "key": "Opportunity ID",
         "label": "Opportunity ID",
         "type": "string",
@@ -2010,19 +2027,29 @@
         "isForeignKey": false,
         "targetModule": null,
         "options": [
-          "Applied",
-          "Screening",
-          "Shortlisted",
-          "Assessment",
-          "Interview",
-          "Offered",
-          "Accepted",
           "Joined",
+          "Offered",
+          "Shortlisted",
+          "Interview",
+          "Applied",
           "Rejected",
-          "Withdrawn",
-          "On Hold"
+          "On Hold",
+          "Screening",
+          "Assessment",
+          "Accepted",
+          "Withdrawn"
         ],
         "filterable": true
+      },
+      {
+        "key": "Offered CTC",
+        "label": "Offered CTC",
+        "type": "currency",
+        "isPrimary": false,
+        "isForeignKey": false,
+        "targetModule": null,
+        "options": null,
+        "filterable": false
       },
       {
         "key": "Eligibility Checked",
@@ -2180,16 +2207,6 @@
         "filterable": false
       },
       {
-        "key": "Offered CTC",
-        "label": "Offered CTC",
-        "type": "currency",
-        "isPrimary": false,
-        "isForeignKey": false,
-        "targetModule": null,
-        "options": null,
-        "filterable": false
-      },
-      {
         "key": "Offer Response",
         "label": "Offer Response",
         "type": "enum",
@@ -2274,17 +2291,17 @@
         "isForeignKey": false,
         "targetModule": null,
         "options": [
-          "Applied",
-          "Screening",
-          "Shortlisted",
-          "Assessment",
-          "Interview",
           "Offered",
+          "Shortlisted",
+          "Interview",
+          "Applied",
+          "Rejected",
+          "On Hold",
+          "Screening",
+          "Assessment",
           "Accepted",
           "Joined",
-          "Rejected",
-          "Withdrawn",
-          "On Hold"
+          "Withdrawn"
         ],
         "filterable": true
       },
@@ -2296,17 +2313,17 @@
         "isForeignKey": false,
         "targetModule": null,
         "options": [
-          "Applied",
-          "Screening",
-          "Shortlisted",
-          "Assessment",
-          "Interview",
           "Offered",
+          "Shortlisted",
+          "Interview",
+          "Applied",
+          "Rejected",
+          "On Hold",
+          "Screening",
+          "Assessment",
           "Accepted",
           "Joined",
-          "Rejected",
-          "Withdrawn",
-          "On Hold"
+          "Withdrawn"
         ],
         "filterable": true
       },

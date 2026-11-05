@@ -123,6 +123,17 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
         });
         return map;
     }, [allStudents]);
+    // Student ID to Student Object lookup map
+    const studentObjMap = useMemo(() => {
+        const map = new Map();
+        allStudents.forEach((s) => {
+            const id = s['Student ID'] || s['College Registration/USN'];
+            if (id) {
+                map.set(id, s);
+            }
+        });
+        return map;
+    }, [allStudents]);
     // Filter Data
     const filteredData = useMemo(() => {
         let result = data.filter(record => {
@@ -164,6 +175,35 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                             return false;
                         }
                     }
+                    else if (key === 'Specialization' || key === 'Stream') {
+                        const valUpper = String(filterVal).toUpperCase();
+                        const specUpper = String(record['Specialization'] || record['Stream'] || '').toUpperCase();
+                        const sIdUpper = String(record['Student ID'] || '').toUpperCase();
+                        const oppIdUpper = String(record['Opportunity ID'] || '').toUpperCase();
+                        const studentObj = studentObjMap.get(record['Student ID']);
+                        const studentStream = String((studentObj && (studentObj['Assigned Training Stream'] || studentObj['Primary Specialisation'])) || '').toUpperCase();
+                        const prog = String((studentObj && studentObj.Programme) || '').toUpperCase();
+
+                        let matchesDropdown = false;
+                        if (valUpper === 'MBA') {
+                            matchesDropdown = prog === 'MBA' || sIdUpper.includes('KU24M') || (!sIdUpper.includes('S126') && specUpper !== 'MCA');
+                        } else if (valUpper === 'MCA') {
+                            matchesDropdown = specUpper === 'MCA' || specUpper.includes('DEVELOPER') || specUpper.includes('ENGINEER') || prog.includes('MCA') || sIdUpper.includes('S126') || oppIdUpper.includes('MCA');
+                        } else if (valUpper.includes('MARKETING')) {
+                            matchesDropdown = specUpper.includes('MARKETING') || studentStream.includes('MARKETING');
+                        } else if (valUpper.includes('FINANCE')) {
+                            matchesDropdown = specUpper.includes('FINANCE') || studentStream.includes('FINANCE');
+                        } else if (valUpper.includes('HR')) {
+                            matchesDropdown = specUpper.includes('HR') || studentStream.includes('HR');
+                        } else if (valUpper.includes('ANALYTICS') || valUpper.includes('BA')) {
+                            matchesDropdown = specUpper.includes('ANALYTICS') || specUpper.includes(' BA') || specUpper.includes('+BA') || studentStream.includes('ANALYST');
+                        } else {
+                            matchesDropdown = specUpper.includes(valUpper) || studentStream.includes(valUpper);
+                        }
+                        if (!matchesDropdown) {
+                            return false;
+                        }
+                    }
                     else if (String(record[key]) !== filterVal) {
                         return false;
                     }
@@ -173,9 +213,37 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
             if (quickCategoryFilter) {
                 if (quickCategoryFilter.startsWith('STREAM:')) {
                     const streamName = quickCategoryFilter.replace('STREAM:', '').trim().toUpperCase();
-                    const mapped = String(record['Mapped Stream'] || '').toUpperCase();
-                    if (!mapped.includes(streamName)) {
-                        return false;
+                    if (moduleConfig.id === 'applications') {
+                        const spec = String(record['Specialization'] || '').toUpperCase();
+                        const sIdUpper = String(record['Student ID'] || '').toUpperCase();
+                        const oppIdUpper = String(record['Opportunity ID'] || '').toUpperCase();
+                        const studentObj = studentObjMap.get(record['Student ID']);
+                        const studentStream = String((studentObj && studentObj['Assigned Training Stream']) || '').toUpperCase();
+                        const studentSpec = String((studentObj && studentObj['Primary Specialisation']) || '').toUpperCase();
+                        const prog = String((studentObj && studentObj.Programme) || '').toUpperCase();
+
+                        let matchesStream = false;
+                        if (streamName === 'MBA') {
+                            matchesStream = prog === 'MBA' || sIdUpper.includes('KU24M') || (!sIdUpper.includes('S126') && spec !== 'MCA');
+                        } else if (streamName === 'MCA') {
+                            matchesStream = spec === 'MCA' || spec.includes('DEVELOPER') || spec.includes('ENGINEER') || prog.includes('MCA') || studentStream.includes('MCA') || sIdUpper.includes('S126') || oppIdUpper.includes('MCA');
+                        } else if (streamName === 'MARKETING') {
+                            matchesStream = spec.includes('MARKETING') || studentStream.includes('MARKETING') || studentSpec.includes('MARKETING');
+                        } else if (streamName === 'FINANCE') {
+                            matchesStream = spec.includes('FINANCE') || studentStream.includes('FINANCE') || studentSpec.includes('FINANCE');
+                        } else if (streamName === 'HR') {
+                            matchesStream = spec.includes('HR') || studentStream.includes('HR') || studentSpec.includes('HR');
+                        } else if (streamName === 'BUSINESS ANALYST' || streamName === 'BUSINESS ANALYTICS' || streamName === 'ANALYTICS') {
+                            matchesStream = spec.includes('ANALYTICS') || spec.includes(' BA') || spec.includes('+BA') || studentStream.includes('ANALYST') || studentSpec.includes('ANALYTICS');
+                        } else {
+                            matchesStream = spec.includes(streamName) || studentStream.includes(streamName) || studentSpec.includes(streamName);
+                        }
+                        if (!matchesStream) return false;
+                    } else {
+                        const mapped = String(record['Mapped Stream'] || '').toUpperCase();
+                        if (!mapped.includes(streamName)) {
+                            return false;
+                        }
                     }
                 }
                 else if (quickCategoryFilter === 'SHORTLISTED') {
@@ -286,6 +354,29 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 const aScore = Number(a['Overall Score'] ?? a['Score'] ?? a['Total Marks']) || 0;
                 const bScore = Number(b['Overall Score'] ?? b['Score'] ?? b['Total Marks']) || 0;
                 return bScore - aScore;
+            });
+        }
+        // Applications (Student List): Order by recruitment pipeline: Joined -> Offered -> Shortlisted -> Interview -> Applied -> Rejected
+        if (moduleConfig.id === 'applications') {
+            const stagePriority = {
+                'joined': 1,
+                'offered': 2,
+                'accepted': 2,
+                'shortlisted': 3,
+                'interview': 4,
+                'applied': 5,
+                'screening': 5,
+                'on hold': 6,
+                'rejected': 7,
+                'withdrawn': 7
+            };
+            result = [...result].sort((a, b) => {
+                const stageA = String(a['Current Stage'] || '').trim().toLowerCase();
+                const stageB = String(b['Current Stage'] || '').trim().toLowerCase();
+                const pA = stagePriority[stageA] ?? 6;
+                const pB = stagePriority[stageB] ?? 6;
+                if (pA !== pB) return pA - pB;
+                return String(a['Application ID'] || '').localeCompare(String(b['Application ID'] || ''));
             });
         }
         return result;
@@ -540,30 +631,141 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {[
-                { company: 'Dell', role: 'Inside Sales & Ops', bg: 'bg-blue-50/70', border: 'border-blue-100', text: 'text-blue-900', num: 'text-blue-700', sub: 'text-blue-600/90' },
-                { company: 'Radiall', role: 'HR & Finance Ops', bg: 'bg-indigo-50/70', border: 'border-indigo-100', text: 'text-indigo-900', num: 'text-indigo-700', sub: 'text-indigo-600/90' },
-                { company: 'Diageo', role: 'Commercial Finance', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
                 { company: 'Rareminds', role: 'Talent Solutions & BD', bg: 'bg-purple-50/70', border: 'border-purple-100', text: 'text-purple-900', num: 'text-purple-700', sub: 'text-purple-600/90' },
+                { company: 'PFC', role: 'Finance Executive & Analyst', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
+                { company: 'Radiall', role: 'HR & Finance Ops', bg: 'bg-indigo-50/70', border: 'border-indigo-100', text: 'text-indigo-900', num: 'text-indigo-700', sub: 'text-indigo-600/90' },
+                { company: 'Dell', role: 'Inside Sales & Ops', bg: 'bg-blue-50/70', border: 'border-blue-100', text: 'text-blue-900', num: 'text-blue-700', sub: 'text-blue-600/90' },
                 { company: 'Jp Morgan', role: 'Financial Ops & Analytics', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
+                { company: 'Diageo', role: 'Commercial Finance', bg: 'bg-rose-50/70', border: 'border-rose-100', text: 'text-rose-900', num: 'text-rose-700', sub: 'text-rose-600/90' },
                 { company: 'JMR', role: 'Banking Tech / BA', bg: 'bg-teal-50/70', border: 'border-teal-100', text: 'text-teal-900', num: 'text-teal-700', sub: 'text-teal-600/90' },
+                { company: 'Sutherland', role: 'Sales Ops & CX', bg: 'bg-cyan-50/70', border: 'border-cyan-100', text: 'text-cyan-900', num: 'text-cyan-700', sub: 'text-cyan-600/90' },
+                { company: '5C Network', role: 'Healthcare Operations & BD', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
+                { company: 'Atoll Solutions Private Limited', role: 'Software Engineer Trainee', bg: 'bg-sky-50/70', border: 'border-sky-100', text: 'text-sky-900', num: 'text-sky-700', sub: 'text-sky-600/90' },
+                { company: 'Gagansayi Ventures', role: 'Operations & Marketing', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
+                { company: 'ROLLWELL', role: 'Operations & Finance Executive', bg: 'bg-teal-50/70', border: 'border-teal-100', text: 'text-teal-900', num: 'text-teal-700', sub: 'text-teal-600/90' },
+                { company: 'POSHIUM', role: 'Business Development Associate', bg: 'bg-fuchsia-50/70', border: 'border-fuchsia-100', text: 'text-fuchsia-900', num: 'text-fuchsia-700', sub: 'text-fuchsia-600/90' },
+                { company: 'Brickwork India', role: 'Research & HR Ops', bg: 'bg-violet-50/70', border: 'border-violet-100', text: 'text-violet-900', num: 'text-violet-700', sub: 'text-violet-600/90' },
+                { company: 'Legion Energy', role: 'Energy Operations Executive', bg: 'bg-lime-50/70', border: 'border-lime-100', text: 'text-lime-900', num: 'text-lime-700', sub: 'text-lime-600/90' },
             ].map(item => {
                 const isSelected = quickCategoryFilter === `COMPANY:${item.company}`;
-                const count = data.filter(a => a['Company Name'] === item.company && ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(a['Current Stage'])).length;
-                return (<div key={item.company} onClick={() => setQuickCategoryFilter(prev => prev === `COMPANY:${item.company}` ? null : `COMPANY:${item.company}`)} className={`p-3 rounded-xl border ${item.bg} ${item.border} cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${isSelected ? 'ring-2 ring-blue-600 ring-offset-1 shadow-md scale-[1.02]' : ''}`} title={`Filter by ${item.company} Shortlisted Candidates (${count})`}>
+                const compApps = data.filter(a => a['Company Name'] === item.company);
+                const totalApplied = compApps.length;
+                const joinedCount = compApps.filter(a => a['Current Stage'] === 'Joined' || a['Final Outcome'] === 'Joined').length;
+                const offeredCount = compApps.filter(a => ['Offered', 'Accepted'].includes(a['Current Stage']) && a['Current Stage'] !== 'Joined').length;
+                const shortlistedCount = compApps.filter(a => a['Current Stage'] === 'Shortlisted').length;
+                const interviewCount = compApps.filter(a => a['Current Stage'] === 'Interview').length;
+                const rejectedCount = compApps.filter(a => a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected').length;
+
+                return (<div key={item.company} onClick={() => setQuickCategoryFilter(prev => prev === `COMPANY:${item.company}` ? null : `COMPANY:${item.company}`)} className={`p-3.5 rounded-xl border ${item.bg} ${item.border} cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all ${isSelected ? 'ring-2 ring-blue-600 ring-offset-1 shadow-md scale-[1.01]' : ''}`} title={`Filter by ${item.company} (${totalApplied} Applied: ${joinedCount} Joined, ${offeredCount} Offered, ${shortlistedCount} Shortlisted, ${interviewCount} Interview, ${rejectedCount} Rejected)`}>
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs font-semibold ${item.text} truncate`}>{item.company}</span>
-                    {isSelected && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"/>}
-                  </div>
-                  <div className={`text-xl font-black font-mono mt-1 ${item.num}`}>
-                    {count} <span className="text-xs font-normal opacity-80">Shortlisted</span>
+                    <span className={`text-xs font-bold ${item.text} truncate`}>{item.company}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white/80 border border-slate-200/60 text-slate-700">
+                        {totalApplied} Applied
+                      </span>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"/>}
+                    </div>
                   </div>
                   <p className={`text-[10px] mt-0.5 truncate ${item.sub}`}>{item.role}</p>
+
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/70 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-teal-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 inline-block"/> Joined
+                      </span>
+                      <span className="font-bold font-mono text-teal-800">{joinedCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"/> Offered
+                      </span>
+                      <span className="font-bold font-mono text-emerald-800">{offeredCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-blue-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"/> Shortlisted
+                      </span>
+                      <span className="font-bold font-mono text-blue-800">{shortlistedCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"/> Interview
+                      </span>
+                      <span className="font-bold font-mono text-indigo-800">{interviewCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"/> Applied
+                      </span>
+                      <span className="font-bold font-mono text-slate-800">{totalApplied}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-rose-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"/> Rejected
+                      </span>
+                      <span className="font-bold font-mono text-rose-800">{rejectedCount}</span>
+                    </div>
+                  </div>
                 </div>);
             })}
           </div>
         </div>)}
+
+      {/* Applications: Dedicated Stream-Wise Filter Bar */}
+      {moduleConfig.id === 'applications' && (
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
+                Stream-Wise Filter
+                <span className="text-[10px] font-normal text-slate-500 hidden sm:inline">• Filter student applications by academic stream</span>
+              </h4>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: null, label: 'All Streams', count: data.length, dot: 'bg-slate-400' },
+              { id: 'STREAM:MBA', label: 'MBA', count: data.filter(a => !String(a['Student ID'] || '').toUpperCase().includes('S126') && String(a.Specialization || '').toUpperCase() !== 'MCA').length, dot: 'bg-blue-500' },
+              { id: 'STREAM:Marketing', label: 'Marketing', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('MARKETING')).length, dot: 'bg-purple-500' },
+              { id: 'STREAM:Finance', label: 'Finance', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('FINANCE')).length, dot: 'bg-emerald-500' },
+              { id: 'STREAM:HR', label: 'HR', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('HR')).length, dot: 'bg-rose-500' },
+              { id: 'STREAM:Business Analytics', label: 'Business Analytics', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('ANALYTICS') || String(a.Specialization || '').toUpperCase().includes('BA')).length, dot: 'bg-amber-500' },
+              { id: 'STREAM:MCA', label: 'MCA', count: data.filter(a => String(a.Specialization || '').toUpperCase() === 'MCA' || String(a['Student ID'] || '').toUpperCase().includes('S126') || String(a['Opportunity ID'] || '').toUpperCase().includes('MCA')).length, dot: 'bg-indigo-500' },
+            ].map(tab => {
+              const isSelected = tab.id === null 
+                ? (quickCategoryFilter === null || !quickCategoryFilter.startsWith('STREAM:')) 
+                : quickCategoryFilter === tab.id;
+              return (
+                <button
+                  key={tab.label}
+                  type="button"
+                  onClick={() => setQuickCategoryFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-[1.02]'
+                      : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                  title={`Filter ${tab.label} applications (${tab.count})`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : tab.dot}`} />
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200/60'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Career Specializations & Track Analytics Bar */}
       {moduleConfig.id === 'career-profiles' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
@@ -799,7 +1001,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
               {quickCategoryFilter === 'TRACK:MARKETING' && 'Marketing & Brand Growth Track Candidates'}
               {quickCategoryFilter === 'TRACK:HR' && 'HRBP & People Advisory Track Candidates'}
               {quickCategoryFilter === 'TRACK:TECH' && 'Cloud, AI & Tech Governance Track Candidates'}
-              {quickCategoryFilter.startsWith('STREAM:') && `Companies Mapped to ${quickCategoryFilter.replace('STREAM:', '')} Stream (${filteredData.length} Companies)`}
+              {quickCategoryFilter.startsWith('STREAM:') && (moduleConfig.id === 'applications' ? `${quickCategoryFilter.replace('STREAM:', '')} Stream Candidates (${filteredData.length} Applications)` : `Companies Mapped to ${quickCategoryFilter.replace('STREAM:', '')} Stream (${filteredData.length} Companies)`)}
               {quickCategoryFilter.startsWith('COMPANY:') && `${quickCategoryFilter.replace('COMPANY:', '')} Shortlisted Candidates (${filteredData.length} Records)`}
             </span>
             <span className="text-blue-600 font-medium">Showing {filteredData.length} of {data.length} records</span>
@@ -817,7 +1019,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
             }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length} placeholder={moduleConfig.id === 'applications' ? 'Search by Student Name, Company Name, Application ID, Opportunity ID...' : undefined}/>)}
 
       {/* Main View: Standard Full-Field Data Table */}
-      {viewMode === 'table' && (<DataTable columns={moduleConfig.columns} visibleColumns={visibleColumns} data={filteredData} primaryKey={moduleConfig.primaryId} allStudents={allStudents} allOpportunities={allOpportunities} onRowClick={onRowClick} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick} onEditRow={isReadOnly ? undefined : handleEditRow} onDeleteRow={isReadOnly ? undefined : handleDeleteRow} onFilePreview={moduleConfig.id === 'student-files' ? (rec) => setPreviewFile(rec) : undefined} moduleTitle={moduleConfig.title}/>)}
+      {viewMode === 'table' && (<DataTable columns={moduleConfig.columns} visibleColumns={visibleColumns} data={filteredData} primaryKey={moduleConfig.primaryId} defaultSortKey={moduleConfig.id === 'applications' ? 'Current Stage' : (['opportunities', 'assessment-attempts', 'assessment-scores'].includes(moduleConfig.id) ? null : moduleConfig.primaryId)} defaultSortDirection="asc" allStudents={allStudents} allOpportunities={allOpportunities} onRowClick={onRowClick} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick} onEditRow={isReadOnly ? undefined : handleEditRow} onDeleteRow={isReadOnly ? undefined : handleDeleteRow} onFilePreview={moduleConfig.id === 'student-files' ? (rec) => setPreviewFile(rec) : undefined} moduleTitle={moduleConfig.title}/>)}
 
       {/* Opportunities Card Grid View */}
       {viewMode === 'cards' && moduleConfig.id === 'opportunities' && (<div className="space-y-6">
