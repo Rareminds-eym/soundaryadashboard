@@ -13,1375 +13,1377 @@ import { StudentSubmissionsGroupedView } from '@/components/common/StudentSubmis
 import { Table, Calendar as CalendarIcon, Kanban, Clock, LayoutGrid, List, Layers, Building2, MapPin, ExternalLink, ChevronLeft, ChevronRight, Sparkles, Edit3 } from 'lucide-react';
 import { formatINR } from '@/utils/formatters';
 export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStudentFiles = [], allSessions = [], allAttendance = [], allCareerProfiles = [], allAssessmentAttempts = [], allCompanies = [], allOpportunities = [], userRole, onRowClick, onStudentClick, onRelatedClick, onUploadClick, onAddRecord, onEditRecord, onDeleteRecord, onUpsertAttendance, onAddSessionColumn, }) => {
-  const isReadOnly = userRole === 'COLLEGE_VIEWER';
-  // Search & Filter State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({});
-  const [quickCategoryFilter, setQuickCategoryFilter] = useState(null);
-  // View Mode for modules with alternative views (Attempts -> Grouped, Attendance -> Matrix, Sessions -> Calendar, Applications -> Kanban, History -> Timeline, Opportunities -> Cards/Table)
-  const [viewMode, setViewMode] = useState(() => {
-    if (moduleConfig.id === 'attendance')
-      return 'matrix';
-    if (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores' || moduleConfig.id === 'student-files' || moduleConfig.id === 'student-submissions')
-      return 'grouped';
-    if (moduleConfig.id === 'opportunities')
-      return 'cards';
-    return 'table';
-  });
-  // Visible Columns (Default to all or first 8 for wide tables, but all can be enabled)
-  const [visibleColumns, setVisibleColumns] = useState(() => {
-    return moduleConfig.columns.slice(0, Math.min(moduleConfig.columns.length, 9)).map(c => c.key);
-  });
-  // Sync state whenever active module changes
-  useEffect(() => {
-    setVisibleColumns(moduleConfig.columns.slice(0, Math.min(moduleConfig.columns.length, 9)).map(c => c.key));
-    setSearchQuery('');
-    setFilters({});
-    const searchParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const paramFilter = searchParams.get('filter') || searchParams.get('stage');
-    setQuickCategoryFilter(paramFilter ? paramFilter.toUpperCase() : null);
-    setViewMode(moduleConfig.id === 'attendance'
-      ? 'matrix'
-      : (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores' || moduleConfig.id === 'student-files' || moduleConfig.id === 'student-submissions')
-        ? 'grouped'
-        : moduleConfig.id === 'opportunities'
-          ? 'cards'
-          : 'table');
-  }, [moduleConfig.id]);
-  // Add/Edit Record Modal State
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [toastMessage, setToastMessage] = useState(null);
-  // Auto-dismiss toast after 3.5s
-  useEffect(() => {
-    if (toastMessage) {
-      const timer = setTimeout(() => setToastMessage(null), 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [toastMessage]);
-  // File Preview Modal State (for student-files module)
-  const [previewFile, setPreviewFile] = useState(null);
-  // Confirm delete state
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const handleAddNew = () => {
-    setEditingRecord(null);
-    setIsFormOpen(true);
-  };
-  const handleEditRow = (record) => {
-    setEditingRecord(record);
-    setIsFormOpen(true);
-  };
-  const handleDeleteRow = (record) => {
-    const primaryValue = record[moduleConfig.primaryId];
-    if (window.confirm(`Delete record "${primaryValue}" from ${moduleConfig.title}? This cannot be undone.`)) {
-      if (onDeleteRecord) {
-        onDeleteRecord(moduleConfig.id, moduleConfig.primaryId, primaryValue);
-      }
-      setToastMessage(`Record "${primaryValue}" deleted`);
-    }
-  };
-  const handleFormSave = (record) => {
-    const isActualEdit = Boolean(editingRecord && editingRecord[moduleConfig.primaryId]);
-    if (isActualEdit) {
-      // Edit mode
-      const primaryValue = editingRecord[moduleConfig.primaryId];
-      if (onEditRecord) {
-        onEditRecord(moduleConfig.id, moduleConfig.primaryId, primaryValue, record);
-      }
-      setToastMessage(`✓ Record "${primaryValue}" updated successfully`);
-    }
-    else {
-      // Add mode
-      if (onAddRecord) {
-        onAddRecord(moduleConfig.id, record);
-      }
-      const primaryValue = record[moduleConfig.primaryId] || 'New record';
-      setToastMessage(`✓ Record "${primaryValue}" created successfully`);
-    }
-    setIsFormOpen(false);
-    setEditingRecord(null);
-  };
-  // Company ID to Company Name lookup map
-  const companyLookupMap = useMemo(() => {
-    const map = new Map();
-    allCompanies.forEach((c) => {
-      if (c['Company ID'] && c['Company Name']) {
-        map.set(c['Company ID'], c['Company Name']);
-      }
+    const isReadOnly = userRole === 'COLLEGE_VIEWER';
+    // Search & Filter State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filters, setFilters] = useState({});
+    const [quickCategoryFilter, setQuickCategoryFilter] = useState(null);
+    // View Mode for modules with alternative views (Attempts -> Grouped, Attendance -> Matrix, Sessions -> Calendar, Applications -> Kanban, History -> Timeline, Opportunities -> Cards/Table)
+    const [viewMode, setViewMode] = useState(() => {
+        if (moduleConfig.id === 'attendance')
+            return 'matrix';
+        if (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores' || moduleConfig.id === 'student-files' || moduleConfig.id === 'student-submissions')
+            return 'grouped';
+        if (moduleConfig.id === 'opportunities')
+            return 'cards';
+        return 'table';
     });
-    return map;
-  }, [allCompanies]);
-  // Student ID to Student Name lookup map
-  const studentLookupMap = useMemo(() => {
-    const map = new Map();
-    allStudents.forEach((s) => {
-      const id = s['Student ID'] || s['College Registration/USN'];
-      const name = s['Full Name'] || s['Student Name'];
-      if (id && name) {
-        map.set(id, name);
-      }
+    // Visible Columns (Default to all or first 8 for wide tables, but all can be enabled)
+    const [visibleColumns, setVisibleColumns] = useState(() => {
+        return moduleConfig.columns.slice(0, Math.min(moduleConfig.columns.length, 9)).map(c => c.key);
     });
-    return map;
-  }, [allStudents]);
-  // Student ID to Student Object lookup map
-  const studentObjMap = useMemo(() => {
-    const map = new Map();
-    allStudents.forEach((s) => {
-      const id = s['Student ID'] || s['College Registration/USN'];
-      if (id) {
-        map.set(id, s);
-      }
-    });
-    return map;
-  }, [allStudents]);
-  // Filter Data
-  const filteredData = useMemo(() => {
-    let result = data.filter(record => {
-      // 1. Search Query Match across all record keys + student name
-      if (searchQuery.trim() !== '') {
-        const query = searchQuery.toLowerCase();
-        let matches = Object.values(record).some(val => String(val || '').toLowerCase().includes(query));
-        if (!matches && record['Student ID']) {
-          const sName = studentLookupMap.get(record['Student ID']);
-          if (sName && sName.toLowerCase().includes(query)) {
-            matches = true;
-          }
+    // Sync state whenever active module changes
+    useEffect(() => {
+        setVisibleColumns(moduleConfig.columns.slice(0, Math.min(moduleConfig.columns.length, 9)).map(c => c.key));
+        setSearchQuery('');
+        setFilters({});
+        const searchParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
+        const paramFilter = searchParams.get('filter') || searchParams.get('stage');
+        setQuickCategoryFilter(paramFilter ? paramFilter.toUpperCase() : null);
+        setViewMode(moduleConfig.id === 'attendance'
+            ? 'matrix'
+            : (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores' || moduleConfig.id === 'student-files' || moduleConfig.id === 'student-submissions')
+                ? 'grouped'
+                : moduleConfig.id === 'opportunities'
+                    ? 'cards'
+                    : 'table');
+    }, [moduleConfig.id]);
+    // Add/Edit Record Modal State
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [editingRecord, setEditingRecord] = useState(null);
+    const [toastMessage, setToastMessage] = useState(null);
+    // Auto-dismiss toast after 3.5s
+    useEffect(() => {
+        if (toastMessage) {
+            const timer = setTimeout(() => setToastMessage(null), 3500);
+            return () => clearTimeout(timer);
         }
-        if (!matches && record['Opportunity ID']) {
-          const opp = allOpportunities.find(o => o['Opportunity ID'] === record['Opportunity ID']);
-          if (opp) {
-            const compName = String(opp['Company Name'] || '').toLowerCase();
-            const roleTitle = String(opp['Role Title'] || opp['Role'] || '').toLowerCase();
-            if (compName.includes(query) || roleTitle.includes(query)) {
-              matches = true;
+    }, [toastMessage]);
+    // File Preview Modal State (for student-files module)
+    const [previewFile, setPreviewFile] = useState(null);
+    // Confirm delete state
+    const [pendingDelete, setPendingDelete] = useState(null);
+    const handleAddNew = () => {
+        setEditingRecord(null);
+        setIsFormOpen(true);
+    };
+    const handleEditRow = (record) => {
+        setEditingRecord(record);
+        setIsFormOpen(true);
+    };
+    const handleDeleteRow = (record) => {
+        const primaryValue = record[moduleConfig.primaryId];
+        if (window.confirm(`Delete record "${primaryValue}" from ${moduleConfig.title}? This cannot be undone.`)) {
+            if (onDeleteRecord) {
+                onDeleteRecord(moduleConfig.id, moduleConfig.primaryId, primaryValue);
             }
-          }
+            setToastMessage(`Record "${primaryValue}" deleted`);
         }
-        if (!matches && record['Company ID']) {
-          const compName = companyLookupMap.get(record['Company ID']);
-          if (compName && compName.toLowerCase().includes(query)) {
-            matches = true;
-          }
-        }
-        if (!matches)
-          return false;
-      }
-      // 2. Dropdown Filter Matches
-      for (const [key, filterVal] of Object.entries(filters)) {
-        if (filterVal) {
-          if (key === 'Mapped Stream') {
-            const mapped = String(record['Mapped Stream'] || '').toUpperCase();
-            if (!mapped.includes(String(filterVal).toUpperCase())) {
-              return false;
+    };
+    const handleFormSave = (record) => {
+        const isActualEdit = Boolean(editingRecord && editingRecord[moduleConfig.primaryId]);
+        if (isActualEdit) {
+            // Edit mode
+            const primaryValue = editingRecord[moduleConfig.primaryId];
+            if (onEditRecord) {
+                onEditRecord(moduleConfig.id, moduleConfig.primaryId, primaryValue, record);
             }
-          }
-          else if (key === 'Specialization' || key === 'Stream') {
-            const valUpper = String(filterVal).toUpperCase();
-            const specUpper = String(record['Specialization'] || record['Stream'] || '').toUpperCase();
-            const sIdUpper = String(record['Student ID'] || '').toUpperCase();
-            const oppIdUpper = String(record['Opportunity ID'] || '').toUpperCase();
-            const studentObj = studentObjMap.get(record['Student ID']);
-            const studentStream = String((studentObj && (studentObj['Assigned Training Stream'] || studentObj['Primary Specialisation'])) || '').toUpperCase();
-            const prog = String((studentObj && studentObj.Programme) || '').toUpperCase();
-
-            let matchesDropdown = false;
-            if (valUpper === 'MBA') {
-              matchesDropdown = prog === 'MBA' || sIdUpper.includes('KU24M') || (!sIdUpper.includes('S126') && specUpper !== 'MCA');
-            } else if (valUpper === 'MCA') {
-              matchesDropdown = specUpper === 'MCA' || specUpper.includes('DEVELOPER') || specUpper.includes('ENGINEER') || prog.includes('MCA') || sIdUpper.includes('S126') || oppIdUpper.includes('MCA');
-            } else if (valUpper.includes('MARKETING')) {
-              matchesDropdown = specUpper.includes('MARKETING') || studentStream.includes('MARKETING');
-            } else if (valUpper.includes('FINANCE')) {
-              matchesDropdown = specUpper.includes('FINANCE') || studentStream.includes('FINANCE');
-            } else if (valUpper.includes('HR')) {
-              matchesDropdown = specUpper.includes('HR') || studentStream.includes('HR');
-            } else if (valUpper.includes('ANALYTICS') || valUpper.includes('BA')) {
-              matchesDropdown = specUpper.includes('ANALYTICS') || specUpper.includes(' BA') || specUpper.includes('+BA') || studentStream.includes('ANALYST');
-            } else {
-              matchesDropdown = specUpper.includes(valUpper) || studentStream.includes(valUpper);
+            setToastMessage(`✓ Record "${primaryValue}" updated successfully`);
+        }
+        else {
+            // Add mode
+            if (onAddRecord) {
+                onAddRecord(moduleConfig.id, record);
             }
-            if (!matchesDropdown) {
-              return false;
+            const primaryValue = record[moduleConfig.primaryId] || 'New record';
+            setToastMessage(`✓ Record "${primaryValue}" created successfully`);
+        }
+        setIsFormOpen(false);
+        setEditingRecord(null);
+    };
+    // Company ID to Company Name lookup map
+    const companyLookupMap = useMemo(() => {
+        const map = new Map();
+        allCompanies.forEach((c) => {
+            if (c['Company ID'] && c['Company Name']) {
+                map.set(c['Company ID'], c['Company Name']);
             }
-          }
-          else if (String(record[key]) !== filterVal) {
-            return false;
-          }
-        }
-      }
-      // 3. Quick Category Filter (from Applications KPI cards, Company Analytics cards, or Stream Filter)
-      if (quickCategoryFilter) {
-        if (quickCategoryFilter.startsWith('STREAM:')) {
-          const streamName = quickCategoryFilter.replace('STREAM:', '').trim().toUpperCase();
-          if (moduleConfig.id === 'applications') {
-            const spec = String(record['Specialization'] || '').toUpperCase();
-            const sIdUpper = String(record['Student ID'] || '').toUpperCase();
-            const oppIdUpper = String(record['Opportunity ID'] || '').toUpperCase();
-            const studentObj = studentObjMap.get(record['Student ID']);
-            const studentStream = String((studentObj && studentObj['Assigned Training Stream']) || '').toUpperCase();
-            const studentSpec = String((studentObj && studentObj['Primary Specialisation']) || '').toUpperCase();
-            const prog = String((studentObj && studentObj.Programme) || '').toUpperCase();
-
-            let matchesStream = false;
-            if (streamName === 'MBA') {
-              matchesStream = prog === 'MBA' || sIdUpper.includes('KU24M') || (!sIdUpper.includes('S126') && spec !== 'MCA');
-            } else if (streamName === 'MCA') {
-              matchesStream = spec === 'MCA' || spec.includes('DEVELOPER') || spec.includes('ENGINEER') || prog.includes('MCA') || studentStream.includes('MCA') || sIdUpper.includes('S126') || oppIdUpper.includes('MCA');
-            } else if (streamName === 'MARKETING') {
-              matchesStream = spec.includes('MARKETING') || studentStream.includes('MARKETING') || studentSpec.includes('MARKETING');
-            } else if (streamName === 'FINANCE') {
-              matchesStream = spec.includes('FINANCE') || studentStream.includes('FINANCE') || studentSpec.includes('FINANCE');
-            } else if (streamName === 'HR') {
-              matchesStream = spec.includes('HR') || studentStream.includes('HR') || studentSpec.includes('HR');
-            } else if (streamName === 'BUSINESS ANALYST' || streamName === 'BUSINESS ANALYTICS' || streamName === 'ANALYTICS') {
-              matchesStream = spec.includes('ANALYTICS') || spec.includes(' BA') || spec.includes('+BA') || studentStream.includes('ANALYST') || studentSpec.includes('ANALYTICS');
-            } else {
-              matchesStream = spec.includes(streamName) || studentStream.includes(streamName) || studentSpec.includes(streamName);
+        });
+        return map;
+    }, [allCompanies]);
+    // Student ID to Student Name lookup map
+    const studentLookupMap = useMemo(() => {
+        const map = new Map();
+        allStudents.forEach((s) => {
+            const id = s['Student ID'] || s['College Registration/USN'];
+            const name = s['Full Name'] || s['Student Name'];
+            if (id && name) {
+                map.set(id, name);
             }
-            if (!matchesStream) return false;
-          } else {
-            const mapped = String(record['Mapped Stream'] || '').toUpperCase();
-            if (!mapped.includes(streamName)) {
-              return false;
+        });
+        return map;
+    }, [allStudents]);
+    // Student ID to Student Object lookup map
+    const studentObjMap = useMemo(() => {
+        const map = new Map();
+        allStudents.forEach((s) => {
+            const id = s['Student ID'] || s['College Registration/USN'];
+            if (id) {
+                map.set(id, s);
             }
-          }
-        }
-        else if (quickCategoryFilter === 'SHORTLISTED') {
-          if (!['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'INTERVIEW') {
-          if (!['Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'OFFERED') {
-          if (!['Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'JOINED') {
-          if (!['Accepted', 'Joined'].includes(record['Current Stage']) && record['Offer Response'] !== 'Accepted') {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'APPLIED') {
-          // keeps all applications
-        }
-        else if (quickCategoryFilter === 'REJECTED') {
-          if (record['Current Stage'] !== 'Rejected' && record['Final Outcome'] !== 'Rejected') {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'ON_HOLD') {
-          if (record['Current Stage'] !== 'On Hold') {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'AWAITING_FEEDBACK') {
-          if (record['Company Name'] === 'Not Mapped' || ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'NOT_MAPPED') {
-          if (record['Company Name'] !== 'Not Mapped') {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter.startsWith('COMPANY:')) {
-          const compName = quickCategoryFilter.replace('COMPANY:', '');
-          if (record['Company Name'] !== compName) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'CAREER_PENDING') {
-          if (record['Review Date'] && record['Recommended Role']) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'CAREER_EVALUATED') {
-          if (!record['Review Date'] || !record['Recommended Role']) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'TRACK:ANALYTICS') {
-          if (!/\b(business\s*analyst|data\s*analyst|bi\s*analyst|analytics|decision|data\s*scientist)\b/i.test(String(record['Recommended Role'] || ''))) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'TRACK:BFSI') {
-          if (!/banking|credit|aml|kyc|regulatory|portfolio|broking|finance/i.test(String(record['Recommended Role'] || ''))) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'TRACK:MARKETING') {
-          if (!/market|brand|consumer|promotion|commerce|growth|creator|creative|design|ad\s*ops/i.test(String(record['Recommended Role'] || ''))) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'TRACK:HR') {
-          if (!/hr|people|talent|advisory|counselor|guidance/i.test(String(record['Recommended Role'] || ''))) {
-            return false;
-          }
-        }
-        else if (quickCategoryFilter === 'TRACK:TECH') {
-          if (!/cloud|ai|finops|governance|developer|tech|security/i.test(String(record['Recommended Role'] || ''))) {
-            return false;
-          }
-        }
-      }
-      return true;
-    });
-    // Opportunities: Prioritize Technical Open roles first, then other Technical, then Open Non-Technical, then others
-    if (moduleConfig.id === 'opportunities') {
-      const techRegex = /\b(developer|software|engineer|engineering|frontend|backend|full\s*stack|python|java|react|node|qa|tester|testing|devops|cloud|data\s*analyst|data\s*scientist|data\s*management|machine\s*learning|ai|ml|programmer|web\s*dev|database|sql|technical|robotics|it\s*help\s*desk|technology|technical\s*analyst|application\s*engineer|network)\b/i;
-      result = [...result].sort((a, b) => {
-        const aRole = String(a['Role Title'] || a['Role'] || '');
-        const bRole = String(b['Role Title'] || b['Role'] || '');
-        const aTech = techRegex.test(aRole);
-        const bTech = techRegex.test(bRole);
-        const aOpen = String(a['Opportunity Status'] || '').toLowerCase() === 'open';
-        const bOpen = String(b['Opportunity Status'] || '').toLowerCase() === 'open';
-        const aTier = aTech && aOpen ? 4 : aTech ? 3 : aOpen ? 2 : 1;
-        const bTier = bTech && bOpen ? 4 : bTech ? 3 : bOpen ? 2 : 1;
-        return bTier - aTier;
-      });
-    }
-    // Assessment Attempts & Assessment Scores: Sort highest score first, lowest score last
-    if (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores') {
-      result = [...result].sort((a, b) => {
-        const aScore = Number(a['Overall Score'] ?? a['Score'] ?? a['Total Marks']) || 0;
-        const bScore = Number(b['Overall Score'] ?? b['Score'] ?? b['Total Marks']) || 0;
-        return bScore - aScore;
-      });
-    }
-    // Applications (Student List): Order by recruitment pipeline: Joined -> Offered -> Shortlisted -> Interview -> Applied -> Rejected
-    if (moduleConfig.id === 'applications') {
-      const stagePriority = {
-        'joined': 1,
-        'offered': 2,
-        'accepted': 2,
-        'shortlisted': 3,
-        'interview': 4,
-        'applied': 5,
-        'screening': 5,
-        'on hold': 6,
-        'rejected': 7,
-        'withdrawn': 7
-      };
-      result = [...result].sort((a, b) => {
-        const stageA = String(a['Current Stage'] || '').trim().toLowerCase();
-        const stageB = String(b['Current Stage'] || '').trim().toLowerCase();
-        const pA = stagePriority[stageA] ?? 6;
-        const pB = stagePriority[stageB] ?? 6;
-        if (pA !== pB) return pA - pB;
-        return String(a['Application ID'] || '').localeCompare(String(b['Application ID'] || ''));
-      });
-    }
-    return result;
-  }, [data, searchQuery, filters, quickCategoryFilter, moduleConfig.id]);
-  // Opportunity Card Grid Pagination
-  const [oppPage, setOppPage] = useState(1);
-  const oppPageSize = 12;
-  const totalOppPages = Math.max(1, Math.ceil(filteredData.length / oppPageSize));
-  const paginatedOppCards = useMemo(() => {
-    const start = (oppPage - 1) * oppPageSize;
-    return filteredData.slice(start, start + oppPageSize);
-  }, [filteredData, oppPage, oppPageSize]);
-  useEffect(() => {
-    setOppPage(1);
-  }, [searchQuery, filters, quickCategoryFilter, moduleConfig.id]);
-  // Handle Export to CSV
-  const handleExportCSV = () => {
-    if (filteredData.length === 0)
-      return;
-    const headers = moduleConfig.columns.map(c => c.key);
-    const csvRows = [headers.join(',')];
-    filteredData.forEach(row => {
-      const values = headers.map(h => {
-        const val = row[h];
-        const escaped = String(val === undefined || val === null ? '' : val).replace(/"/g, '""');
-        return `"${escaped}"`;
-      });
-      csvRows.push(values.join(','));
-    });
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${moduleConfig.sheetName}_export.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-  // Derive meaningful module-specific KPI summary cards
-  const summaryKPIs = useMemo(() => {
-    const list = [];
-    const total = filteredData.length;
-    if (moduleConfig.id === 'students') {
-      const mba = filteredData.filter(r => r.Programme === 'MBA').length;
-      const mca = filteredData.filter(r => r.Programme === 'MCA').length;
-      const readyCount = (allCareerProfiles.length > 0 ? allCareerProfiles : []).filter(p => p['Readiness Category'] === 'Ready' || p['Readiness Category'] === 'Industry Ready').length || 60;
-      list.push(<KPICard key="1" title="Total Students" value={total} iconName="Users" colorScheme="blue" subtext="Master Student Directory" />);
-      list.push(<KPICard key="2" title="MBA Candidates" value={mba} iconName="GraduationCap" colorScheme="indigo" subtext="HR, Business Analyst, Marketing, Finance" />);
-      list.push(<KPICard key="3" title="MCA Candidates" value={mca} iconName="Code" colorScheme="purple" subtext="MCA Stream" />);
-      list.push(<KPICard key="4" title="Student Readiness" value={`${readyCount} Ready`} iconName="Award" colorScheme="emerald" subtext="Industry Ready Profiles" />);
-    }
-    else if (moduleConfig.id === 'assessment-attempts') {
-      const completed = filteredData.filter(r => r['Completion Status'] === 'Completed').length;
-      const graded = filteredData.filter(r => (Number(r['Maximum Score']) || 0) >= 10);
-      const totalScore = graded.reduce((acc, r) => acc + (Number(r['Overall Score']) || 0), 0);
-      const totalMax = graded.reduce((acc, r) => acc + (Number(r['Maximum Score']) || 50), 0);
-      const avgPct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
-      list.push(<KPICard key="1" title="Total Attempts" value={total} iconName="FileSpreadsheet" colorScheme="blue" />);
-      list.push(<KPICard key="2" title="Completed Tests" value={completed} iconName="CheckCircle2" colorScheme="emerald" />);
-      list.push(<KPICard key="3" title="Average Performance" value={`${avgPct}%`} iconName="Award" colorScheme="purple" subtext="Across graded tests" />);
-    }
-    else if (moduleConfig.id === 'sessions') {
-      const completed = filteredData.filter(r => r['Session Status'] === 'Completed').length;
-      const isMbaOnly = filteredData.length > 0 && filteredData.every(r => r.Programme === 'MBA');
-      const isMcaOnly = filteredData.length > 0 && filteredData.every(r => r.Programme === 'MCA');
-      const offlineHrs = isMbaOnly ? 51 : isMcaOnly ? 50 : 101;
-      const onlineHrs = isMbaOnly ? 20 : isMcaOnly ? 12.5 : 32.5;
-      const offlineSubtext = isMbaOnly
-        ? '51 hrs offline training delivered'
-        : isMcaOnly
-          ? '50 hrs offline training delivered'
-          : 'MBA: 51 hrs • MCA: 50 hrs';
-      const onlineSubtext = isMbaOnly
-        ? '20 hrs online training delivered'
-        : isMcaOnly
-          ? '12.5 hrs online training delivered'
-          : 'MBA: 20 hrs • MCA: 12.5 hrs';
-      list.push(<KPICard key="1" title="Offline Training Hours" value={`${offlineHrs} hrs`} iconName="Building2" colorScheme="indigo" subtext={offlineSubtext} change="100% on schedule" />);
-      list.push(<KPICard key="3" title="Online Training Hours" value={`${onlineHrs} hrs`} iconName="Laptop" colorScheme="blue" subtext={onlineSubtext} change="100% Completed" />);
-      list.push(<KPICard key="4" title="Total Hours Delivered" value={`${offlineHrs + onlineHrs} hrs`} iconName="Clock" colorScheme="emerald" subtext={`Completed Across ${total} Sessions`} change="SLA Target Met" />);
-    }
-    else if (moduleConfig.id === 'attendance') {
-      const present = filteredData.filter(r => r['Attendance Status'] === 'Present').length;
-      const absent = filteredData.filter(r => r['Attendance Status'] === 'Absent').length;
-      const rate = total > 0 ? Math.round((present / total) * 100) : 0;
-      list.push(<KPICard key="1" title="Attendance Logs" value={total} iconName="UserCheck" colorScheme="blue" />);
-      list.push(<KPICard key="2" title="Present Sessions" value={present} iconName="CheckCircle2" colorScheme="emerald" />);
-      list.push(<KPICard key="3" title="Absences" value={absent} iconName="AlertTriangle" colorScheme="rose" />);
-      list.push(<KPICard key="4" title="Attendance Rate" value={`${rate}%`} iconName="TrendingUp" colorScheme="indigo" />);
-    }
-    else if (moduleConfig.id === 'companies') {
-      const active = filteredData.filter(r => r['Relationship Status'] === 'Active').length;
-      list.push(<KPICard key="1" title="Recruiter Directory" value={total} iconName="Building2" colorScheme="blue" />);
-      list.push(<KPICard key="2" title="Active Hiring" value={active} iconName="CheckCircle2" colorScheme="emerald" />);
-    }
-    else if (moduleConfig.id === 'opportunities') {
-      const open = filteredData.filter(r => r['Opportunity Status'] === 'Open').length;
-      const openOpenings = filteredData
-        .filter(r => r['Opportunity Status'] === 'Open')
-        .reduce((acc, r) => acc + (Number(r['Openings Count']) || 0), 0);
-      list.push(<KPICard key="1" title="Active Job Roles" value={open} iconName="Briefcase" colorScheme="blue" change="Open for Applications" />);
-      list.push(<KPICard key="2" title="Available Vacancies" value={openOpenings} iconName="Users" colorScheme="emerald" change="Open Student Seats" subtext={`Across ${open} active hiring drives`} />);
-    }
-    else if (moduleConfig.id === 'applications' && data.length > 0) {
-      const allApps = data;
-      const shortlisted = allApps.filter(r => ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
-      const awaitingFeedback = allApps.filter(r => r['Company Name'] !== 'Not Mapped' && !['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
-      const shortlistPct = allApps.length > 0 ? Math.round((shortlisted / allApps.length) * 100) : 0;
-      list.push(<KPICard key="1" title="Total Applications" value={allApps.length} iconName="Send" colorScheme="blue" subtext={quickCategoryFilter ? 'Click to show all' : 'Registered Candidates'} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null} />);
-      list.push(<KPICard key="2" title="Shortlisted Candidates" value={shortlisted} iconName="CheckCircle2" colorScheme="indigo" subtext={`${shortlistPct}% Selection Rate • Click to filter`} onClick={() => setQuickCategoryFilter(prev => prev === 'SHORTLISTED' ? null : 'SHORTLISTED')} isSelected={quickCategoryFilter === 'SHORTLISTED'} />);
-      list.push(<KPICard key="3" title="Awaiting Feedback" value={awaitingFeedback} iconName="Clock" colorScheme="amber" subtext="Corporate Drive Review • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'AWAITING_FEEDBACK' ? null : 'AWAITING_FEEDBACK')} isSelected={quickCategoryFilter === 'AWAITING_FEEDBACK'} />);
-    }
-    else if (moduleConfig.id === 'commitments') {
-      const accepted = filteredData.filter(r => r['Acceptance Status'] === 'Accepted').length;
-      const lowRisk = filteredData.filter(r => r['Risk'] === 'Low').length;
-      list.push(<KPICard key="1" title="SLA Deliverables" value={total} iconName="ShieldCheck" colorScheme="blue" />);
-      list.push(<KPICard key="2" title="Accepted & Verified" value={accepted} iconName="CheckCircle2" colorScheme="emerald" />);
-      list.push(<KPICard key="3" title="Low Risk" value={lowRisk} iconName="Award" colorScheme="purple" />);
-    }
-    else if (moduleConfig.id === 'career-profiles') {
-      const allProfiles = data;
-      const readyCount = allProfiles.filter(p => p['Readiness Category'] === 'Ready' || p['Readiness Category'] === 'Industry Ready').length;
-      const withRecommendations = allProfiles.filter(p => !!p['Recommended Role']).length;
-      const reviewed = allProfiles.filter(p => !!p['Review Date']).length;
-      const readyRate = allProfiles.length > 0 ? Math.round((readyCount / allProfiles.length) * 100) : 0;
-      const pendingRecommendations = Math.max(0, allProfiles.length - withRecommendations);
-      const pendingReviewed = Math.max(0, allProfiles.length - reviewed);
-      list.push(<KPICard key="1" title="Career Profiles" value={allProfiles.length} iconName="Compass" colorScheme="blue" subtext={quickCategoryFilter ? `Click to show all ${allProfiles.length}` : 'Student Readiness & Review Directory'} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null} />);
-      list.push(<KPICard key="2" title="Industry Ready" value={readyCount} iconName="Award" colorScheme="emerald" change={`${readyRate}% Ready`} subtext="Placement verified candidates" />);
-      list.push(<KPICard key="3" title="Profiles Evaluated & Mapped" value={reviewed} iconName="CheckCircle2" colorScheme="indigo" subtext={`${reviewed} Completed • Click to filter evaluated`} onClick={() => setQuickCategoryFilter(prev => prev === 'CAREER_EVALUATED' ? null : 'CAREER_EVALUATED')} isSelected={quickCategoryFilter === 'CAREER_EVALUATED'} />);
-      list.push(<KPICard key="4" title="Pending Career Evaluation" value={pendingReviewed} iconName="Clock" colorScheme="amber" change={`${pendingReviewed} Pending`} isPositive={false} subtext="Awaiting Review • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'CAREER_PENDING' ? null : 'CAREER_PENDING')} isSelected={quickCategoryFilter === 'CAREER_PENDING'} />);
-    }
-    else if (moduleConfig.id === 'finance') {
-      const contract = filteredData.filter(r => r['Entry Type'] === 'Contract Value').reduce((acc, r) => acc + (Number(r['Total Amount']) || 0), 0);
-      const invoice = filteredData.filter(r => r['Entry Type'] === 'Invoice').reduce((acc, r) => acc + (Number(r['Total Amount']) || 0), 0);
-      const receipt = filteredData.filter(r => r['Entry Type'] === 'Receipt').reduce((acc, r) => acc + (Number(r['Total Amount']) || 0), 0);
-      list.push(<KPICard key="1" title="Contract Value" value={formatINR(contract)} iconName="IndianRupee" colorScheme="blue" />);
-      list.push(<KPICard key="2" title="Invoiced" value={formatINR(invoice)} iconName="FileSpreadsheet" colorScheme="indigo" />);
-      list.push(<KPICard key="3" title="Receipts Collected" value={formatINR(receipt)} iconName="CheckCircle2" colorScheme="emerald" />);
-    }
-    return list;
-  }, [moduleConfig.id, filteredData, data, quickCategoryFilter]);
-  return (<div className="space-y-6 animate-in fade-in duration-300">
-    {/* Module Page Header */}
-    <PageHeader number={moduleConfig.number} title={moduleConfig.title} description={moduleConfig.description} columns={moduleConfig.columns} visibleColumns={visibleColumns} onColumnChange={setVisibleColumns} primaryKey={moduleConfig.primaryId} onUploadClick={isReadOnly ? undefined : onUploadClick} onExportClick={isReadOnly ? undefined : handleExportCSV} onAddRecord={isReadOnly ? undefined : handleAddNew} onRefreshClick={() => {
-      setSearchQuery('');
-      setFilters({});
-    }} customActions={
-      // View Switcher Buttons for Attempts (Grouped), Attendance (Matrix), Sessions (Calendar), Applications (Kanban), History (Timeline), Opportunities (Cards/Table)
-      ['assessment-attempts', 'assessment-scores', 'student-files', 'student-submissions', 'attendance', 'sessions', 'applications', 'application-history', 'opportunities'].includes(moduleConfig.id) ? (<div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-xs">
-        {moduleConfig.id === 'opportunities' && (<>
-          <button onClick={() => setViewMode('cards')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'cards' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Interactive Opportunity Cards Grid">
-            <LayoutGrid className="w-3.5 h-3.5 text-blue-600" />
-            <span>Cards View</span>
-          </button>
+        });
+        return map;
+    }, [allStudents]);
+    // Filter Data
+    const filteredData = useMemo(() => {
+        let result = data.filter(record => {
+            // 1. Search Query Match across all record keys + student name
+            if (searchQuery.trim() !== '') {
+                const query = searchQuery.toLowerCase();
+                let matches = Object.values(record).some(val => String(val || '').toLowerCase().includes(query));
+                if (!matches && record['Student ID']) {
+                    const sName = studentLookupMap.get(record['Student ID']);
+                    if (sName && sName.toLowerCase().includes(query)) {
+                        matches = true;
+                    }
+                }
+                if (!matches && record['Opportunity ID']) {
+                    const opp = allOpportunities.find(o => o['Opportunity ID'] === record['Opportunity ID']);
+                    if (opp) {
+                        const compName = String(opp['Company Name'] || '').toLowerCase();
+                        const roleTitle = String(opp['Role Title'] || opp['Role'] || '').toLowerCase();
+                        if (compName.includes(query) || roleTitle.includes(query)) {
+                            matches = true;
+                        }
+                    }
+                }
+                if (!matches && record['Company ID']) {
+                    const compName = companyLookupMap.get(record['Company ID']);
+                    if (compName && compName.toLowerCase().includes(query)) {
+                        matches = true;
+                    }
+                }
+                if (!matches)
+                    return false;
+            }
+            // 2. Dropdown Filter Matches
+            for (const [key, filterVal] of Object.entries(filters)) {
+                if (filterVal) {
+                    if (key === 'Mapped Stream') {
+                        const mapped = String(record['Mapped Stream'] || '').toUpperCase();
+                        if (!mapped.includes(String(filterVal).toUpperCase())) {
+                            return false;
+                        }
+                    }
+                    else if (key === 'Specialization' || key === 'Stream') {
+                        const valUpper = String(filterVal).toUpperCase();
+                        const specUpper = String(record['Specialization'] || record['Stream'] || '').toUpperCase();
+                        const sIdUpper = String(record['Student ID'] || '').toUpperCase();
+                        const oppIdUpper = String(record['Opportunity ID'] || '').toUpperCase();
+                        const studentObj = studentObjMap.get(record['Student ID']);
+                        const studentStream = String((studentObj && (studentObj['Assigned Training Stream'] || studentObj['Primary Specialisation'])) || '').toUpperCase();
+                        const prog = String((studentObj && studentObj.Programme) || '').toUpperCase();
 
-          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Full 23-column Data Table">
-            <Table className="w-3.5 h-3.5" />
-            <span>Table View</span>
-          </button>
-        </>)}
+                        let matchesDropdown = false;
+                        if (valUpper === 'MBA') {
+                            matchesDropdown = prog === 'MBA' || sIdUpper.includes('KU24M') || (!sIdUpper.includes('S126') && specUpper !== 'MCA');
+                        } else if (valUpper === 'MCA') {
+                            matchesDropdown = specUpper === 'MCA' || specUpper.includes('DEVELOPER') || specUpper.includes('ENGINEER') || prog.includes('MCA') || sIdUpper.includes('S126') || oppIdUpper.includes('MCA');
+                        } else if (valUpper.includes('MARKETING')) {
+                            matchesDropdown = specUpper.includes('MARKETING') || studentStream.includes('MARKETING');
+                        } else if (valUpper.includes('FINANCE')) {
+                            matchesDropdown = specUpper.includes('FINANCE') || studentStream.includes('FINANCE');
+                        } else if (valUpper.includes('HR')) {
+                            matchesDropdown = specUpper.includes('HR') || studentStream.includes('HR');
+                        } else if (valUpper.includes('ANALYTICS') || valUpper.includes('BA')) {
+                            matchesDropdown = specUpper.includes('ANALYTICS') || specUpper.includes(' BA') || specUpper.includes('+BA') || studentStream.includes('ANALYST');
+                        } else {
+                            matchesDropdown = specUpper.includes(valUpper) || studentStream.includes(valUpper);
+                        }
+                        if (!matchesDropdown) {
+                            return false;
+                        }
+                    }
+                    else if (String(record[key]) !== filterVal) {
+                        return false;
+                    }
+                }
+            }
+            // 3. Quick Category Filter (from Applications KPI cards, Company Analytics cards, or Stream Filter)
+            if (quickCategoryFilter) {
+                if (quickCategoryFilter.startsWith('STREAM:')) {
+                    const streamName = quickCategoryFilter.replace('STREAM:', '').trim().toUpperCase();
+                    if (moduleConfig.id === 'applications') {
+                        const spec = String(record['Specialization'] || '').toUpperCase();
+                        const sIdUpper = String(record['Student ID'] || '').toUpperCase();
+                        const oppIdUpper = String(record['Opportunity ID'] || '').toUpperCase();
+                        const studentObj = studentObjMap.get(record['Student ID']);
+                        const studentStream = String((studentObj && studentObj['Assigned Training Stream']) || '').toUpperCase();
+                        const studentSpec = String((studentObj && studentObj['Primary Specialisation']) || '').toUpperCase();
+                        const prog = String((studentObj && studentObj.Programme) || '').toUpperCase();
 
-        {moduleConfig.id === 'student-submissions' && (<>
-          <button onClick={() => setViewMode('grouped')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'grouped' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Submissions Grouped by Student">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            <span>Grouped by Student</span>
-          </button>
+                        let matchesStream = false;
+                        if (streamName === 'MBA') {
+                            matchesStream = prog === 'MBA' || sIdUpper.includes('KU24M') || (!sIdUpper.includes('S126') && spec !== 'MCA');
+                        } else if (streamName === 'MCA') {
+                            matchesStream = spec === 'MCA' || spec.includes('DEVELOPER') || spec.includes('ENGINEER') || prog.includes('MCA') || studentStream.includes('MCA') || sIdUpper.includes('S126') || oppIdUpper.includes('MCA');
+                        } else if (streamName === 'MARKETING') {
+                            matchesStream = spec.includes('MARKETING') || studentStream.includes('MARKETING') || studentSpec.includes('MARKETING');
+                        } else if (streamName === 'FINANCE') {
+                            matchesStream = spec.includes('FINANCE') || studentStream.includes('FINANCE') || studentSpec.includes('FINANCE');
+                        } else if (streamName === 'HR') {
+                            matchesStream = spec.includes('HR') || studentStream.includes('HR') || studentSpec.includes('HR');
+                        } else if (streamName === 'BUSINESS ANALYST' || streamName === 'BUSINESS ANALYTICS' || streamName === 'ANALYTICS') {
+                            matchesStream = spec.includes('ANALYTICS') || spec.includes(' BA') || spec.includes('+BA') || studentStream.includes('ANALYST') || studentSpec.includes('ANALYTICS');
+                        } else {
+                            matchesStream = spec.includes(streamName) || studentStream.includes(streamName) || studentSpec.includes(streamName);
+                        }
+                        if (!matchesStream) return false;
+                    } else {
+                        const mapped = String(record['Mapped Stream'] || '').toUpperCase();
+                        if (!mapped.includes(streamName)) {
+                            return false;
+                        }
+                    }
+                }
+                else if (quickCategoryFilter === 'SHORTLISTED') {
+                    if (!['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'INTERVIEW') {
+                    if (!['Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'OFFERED') {
+                    if (!['Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'JOINED') {
+                    if (!['Accepted', 'Joined'].includes(record['Current Stage']) && record['Offer Response'] !== 'Accepted') {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'APPLIED') {
+                    // keeps all applications
+                }
+                else if (quickCategoryFilter === 'REJECTED') {
+                    if (record['Current Stage'] !== 'Rejected' && record['Final Outcome'] !== 'Rejected') {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'ON_HOLD') {
+                    if (record['Current Stage'] !== 'On Hold') {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'AWAITING_FEEDBACK') {
+                    if (record['Company Name'] === 'Not Mapped' || ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'NOT_MAPPED') {
+                    if (record['Company Name'] !== 'Not Mapped') {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter.startsWith('COMPANY:')) {
+                    const compName = quickCategoryFilter.replace('COMPANY:', '');
+                    if (record['Company Name'] !== compName) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'CAREER_PENDING') {
+                    if (record['Review Date'] && record['Recommended Role']) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'CAREER_EVALUATED') {
+                    if (!record['Review Date'] || !record['Recommended Role']) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'TRACK:ANALYTICS') {
+                    if (!/\b(business\s*analyst|data\s*analyst|bi\s*analyst|analytics|decision|data\s*scientist)\b/i.test(String(record['Recommended Role'] || ''))) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'TRACK:BFSI') {
+                    if (!/banking|credit|aml|kyc|regulatory|portfolio|broking|finance/i.test(String(record['Recommended Role'] || ''))) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'TRACK:MARKETING') {
+                    if (!/market|brand|consumer|promotion|commerce|growth|creator|creative|design|ad\s*ops/i.test(String(record['Recommended Role'] || ''))) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'TRACK:HR') {
+                    if (!/hr|people|talent|advisory|counselor|guidance/i.test(String(record['Recommended Role'] || ''))) {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'TRACK:TECH') {
+                    if (!/cloud|ai|finops|governance|developer|tech|security/i.test(String(record['Recommended Role'] || ''))) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        });
+        // Opportunities: Prioritize Technical Open roles first, then other Technical, then Open Non-Technical, then others
+        if (moduleConfig.id === 'opportunities') {
+            const techRegex = /\b(developer|software|engineer|engineering|frontend|backend|full\s*stack|python|java|react|node|qa|tester|testing|devops|cloud|data\s*analyst|data\s*scientist|data\s*management|machine\s*learning|ai|ml|programmer|web\s*dev|database|sql|technical|robotics|it\s*help\s*desk|technology|technical\s*analyst|application\s*engineer|network)\b/i;
+            result = [...result].sort((a, b) => {
+                const aRole = String(a['Role Title'] || a['Role'] || '');
+                const bRole = String(b['Role Title'] || b['Role'] || '');
+                const aTech = techRegex.test(aRole);
+                const bTech = techRegex.test(bRole);
+                const aOpen = String(a['Opportunity Status'] || '').toLowerCase() === 'open';
+                const bOpen = String(b['Opportunity Status'] || '').toLowerCase() === 'open';
+                const aTier = aTech && aOpen ? 4 : aTech ? 3 : aOpen ? 2 : 1;
+                const bTier = bTech && bOpen ? 4 : bTech ? 3 : bOpen ? 2 : 1;
+                return bTier - aTier;
+            });
+        }
+        // Assessment Attempts & Assessment Scores: Sort highest score first, lowest score last
+        if (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores') {
+            result = [...result].sort((a, b) => {
+                const aScore = Number(a['Overall Score'] ?? a['Score'] ?? a['Total Marks']) || 0;
+                const bScore = Number(b['Overall Score'] ?? b['Score'] ?? b['Total Marks']) || 0;
+                return bScore - aScore;
+            });
+        }
+        // Applications (Student List): Order by recruitment pipeline: Joined -> Offered -> Shortlisted -> Interview -> Applied -> Rejected
+        if (moduleConfig.id === 'applications') {
+            const stagePriority = {
+                'joined': 1,
+                'offered': 2,
+                'accepted': 2,
+                'shortlisted': 3,
+                'interview': 4,
+                'applied': 5,
+                'screening': 5,
+                'on hold': 6,
+                'rejected': 7,
+                'withdrawn': 7
+            };
+            result = [...result].sort((a, b) => {
+                const stageA = String(a['Current Stage'] || '').trim().toLowerCase();
+                const stageB = String(b['Current Stage'] || '').trim().toLowerCase();
+                const pA = stagePriority[stageA] ?? 6;
+                const pB = stagePriority[stageB] ?? 6;
+                if (pA !== pB) return pA - pB;
+                return String(a['Application ID'] || '').localeCompare(String(b['Application ID'] || ''));
+            });
+        }
+        return result;
+    }, [data, searchQuery, filters, quickCategoryFilter, moduleConfig.id]);
+    // Opportunity Card Grid Pagination
+    const [oppPage, setOppPage] = useState(1);
+    const oppPageSize = 12;
+    const totalOppPages = Math.max(1, Math.ceil(filteredData.length / oppPageSize));
+    const paginatedOppCards = useMemo(() => {
+        const start = (oppPage - 1) * oppPageSize;
+        return filteredData.slice(start, start + oppPageSize);
+    }, [filteredData, oppPage, oppPageSize]);
+    useEffect(() => {
+        setOppPage(1);
+    }, [searchQuery, filters, quickCategoryFilter, moduleConfig.id]);
+    // Handle Export to CSV
+    const handleExportCSV = () => {
+        if (filteredData.length === 0)
+            return;
+        const headers = moduleConfig.columns.map(c => c.key);
+        const csvRows = [headers.join(',')];
+        filteredData.forEach(row => {
+            const values = headers.map(h => {
+                const val = row[h];
+                const escaped = String(val === undefined || val === null ? '' : val).replace(/"/g, '""');
+                return `"${escaped}"`;
+            });
+            csvRows.push(values.join(','));
+        });
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${moduleConfig.sheetName}_export.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    };
+    // Derive meaningful module-specific KPI summary cards
+    const summaryKPIs = useMemo(() => {
+        const list = [];
+        const total = filteredData.length;
+        if (moduleConfig.id === 'students') {
+            const mba = filteredData.filter(r => r.Programme === 'MBA').length;
+            const mca = filteredData.filter(r => r.Programme === 'MCA').length;
+            const readyCount = (allCareerProfiles.length > 0 ? allCareerProfiles : []).filter(p => p['Readiness Category'] === 'Ready' || p['Readiness Category'] === 'Industry Ready').length || 60;
+            list.push(<KPICard key="1" title="Total Students" value={total} iconName="Users" colorScheme="blue" subtext="Master Student Directory"/>);
+            list.push(<KPICard key="2" title="MBA Candidates" value={mba} iconName="GraduationCap" colorScheme="indigo" subtext="HR, Business Analyst, Marketing, Finance"/>);
+            list.push(<KPICard key="3" title="MCA Candidates" value={mca} iconName="Code" colorScheme="purple" subtext="MCA Stream"/>);
+            list.push(<KPICard key="4" title="Student Readiness" value={`${readyCount} Ready`} iconName="Award" colorScheme="emerald" subtext="Industry Ready Profiles"/>);
+        }
+        else if (moduleConfig.id === 'assessment-attempts') {
+            const completed = filteredData.filter(r => r['Completion Status'] === 'Completed').length;
+            const graded = filteredData.filter(r => (Number(r['Maximum Score']) || 0) >= 10);
+            const totalScore = graded.reduce((acc, r) => acc + (Number(r['Overall Score']) || 0), 0);
+            const totalMax = graded.reduce((acc, r) => acc + (Number(r['Maximum Score']) || 50), 0);
+            const avgPct = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+            list.push(<KPICard key="1" title="Total Attempts" value={total} iconName="FileSpreadsheet" colorScheme="blue"/>);
+            list.push(<KPICard key="2" title="Completed Tests" value={completed} iconName="CheckCircle2" colorScheme="emerald"/>);
+            list.push(<KPICard key="3" title="Average Performance" value={`${avgPct}%`} iconName="Award" colorScheme="purple" subtext="Across graded tests"/>);
+        }
+        else if (moduleConfig.id === 'sessions') {
+            const completed = filteredData.filter(r => r['Session Status'] === 'Completed').length;
+            const isMbaOnly = filteredData.length > 0 && filteredData.every(r => r.Programme === 'MBA');
+            const isMcaOnly = filteredData.length > 0 && filteredData.every(r => r.Programme === 'MCA');
+            const offlineHrs = isMbaOnly ? 51 : isMcaOnly ? 50 : 101;
+            const onlineHrs = isMbaOnly ? 20 : isMcaOnly ? 12.5 : 32.5;
+            const offlineSubtext = isMbaOnly
+                ? '51 hrs offline training delivered'
+                : isMcaOnly
+                    ? '50 hrs offline training delivered'
+                    : 'MBA: 51 hrs • MCA: 50 hrs';
+            const onlineSubtext = isMbaOnly
+                ? '20 hrs online training delivered'
+                : isMcaOnly
+                    ? '12.5 hrs online training delivered'
+                    : 'MBA: 20 hrs • MCA: 12.5 hrs';
+            list.push(<KPICard key="1" title="Offline Training Hours" value={`${offlineHrs} hrs`} iconName="Building2" colorScheme="indigo" subtext={offlineSubtext} change="100% on schedule"/>);
+            list.push(<KPICard key="3" title="Online Training Hours" value={`${onlineHrs} hrs`} iconName="Laptop" colorScheme="blue" subtext={onlineSubtext} change="100% Completed"/>);
+            list.push(<KPICard key="4" title="Total Hours Delivered" value={`${offlineHrs + onlineHrs} hrs`} iconName="Clock" colorScheme="emerald" subtext={`Completed Across ${total} Sessions`} change="SLA Target Met"/>);
+        }
+        else if (moduleConfig.id === 'attendance') {
+            const present = filteredData.filter(r => r['Attendance Status'] === 'Present').length;
+            const absent = filteredData.filter(r => r['Attendance Status'] === 'Absent').length;
+            const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+            list.push(<KPICard key="1" title="Attendance Logs" value={total} iconName="UserCheck" colorScheme="blue"/>);
+            list.push(<KPICard key="2" title="Present Sessions" value={present} iconName="CheckCircle2" colorScheme="emerald"/>);
+            list.push(<KPICard key="3" title="Absences" value={absent} iconName="AlertTriangle" colorScheme="rose"/>);
+            list.push(<KPICard key="4" title="Attendance Rate" value={`${rate}%`} iconName="TrendingUp" colorScheme="indigo"/>);
+        }
+        else if (moduleConfig.id === 'companies') {
+            const active = filteredData.filter(r => r['Relationship Status'] === 'Active').length;
+            list.push(<KPICard key="1" title="Recruiter Directory" value={total} iconName="Building2" colorScheme="blue"/>);
+            list.push(<KPICard key="2" title="Active Hiring" value={active} iconName="CheckCircle2" colorScheme="emerald"/>);
+        }
+        else if (moduleConfig.id === 'opportunities') {
+            const open = filteredData.filter(r => r['Opportunity Status'] === 'Open').length;
+            const openOpenings = filteredData
+                .filter(r => r['Opportunity Status'] === 'Open')
+                .reduce((acc, r) => acc + (Number(r['Openings Count']) || 0), 0);
+            list.push(<KPICard key="1" title="Active Job Roles" value={open} iconName="Briefcase" colorScheme="blue" change="Open for Applications"/>);
+            list.push(<KPICard key="2" title="Available Vacancies" value={openOpenings} iconName="Users" colorScheme="emerald" change="Open Student Seats" subtext={`Across ${open} active hiring drives`}/>);
+        }
+        else if (moduleConfig.id === 'applications' && data.length > 0) {
+            const allApps = data;
+            const shortlisted = allApps.filter(r => ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
+            const awaitingFeedback = allApps.filter(r => r['Company Name'] !== 'Not Mapped' && !['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
+            const shortlistPct = allApps.length > 0 ? Math.round((shortlisted / allApps.length) * 100) : 0;
+            list.push(<KPICard key="1" title="Total Applications" value={allApps.length} iconName="Send" colorScheme="blue" subtext={quickCategoryFilter ? 'Click to show all' : 'Registered Candidates'} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null}/>);
+            list.push(<KPICard key="2" title="Shortlisted Candidates" value={shortlisted} iconName="CheckCircle2" colorScheme="indigo" subtext={`${shortlistPct}% Selection Rate • Click to filter`} onClick={() => setQuickCategoryFilter(prev => prev === 'SHORTLISTED' ? null : 'SHORTLISTED')} isSelected={quickCategoryFilter === 'SHORTLISTED'}/>);
+            list.push(<KPICard key="3" title="Awaiting Feedback" value={awaitingFeedback} iconName="Clock" colorScheme="amber" subtext="Corporate Drive Review • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'AWAITING_FEEDBACK' ? null : 'AWAITING_FEEDBACK')} isSelected={quickCategoryFilter === 'AWAITING_FEEDBACK'}/>);
+        }
+        else if (moduleConfig.id === 'commitments') {
+            const accepted = filteredData.filter(r => r['Acceptance Status'] === 'Accepted').length;
+            const lowRisk = filteredData.filter(r => r['Risk'] === 'Low').length;
+            list.push(<KPICard key="1" title="SLA Deliverables" value={total} iconName="ShieldCheck" colorScheme="blue"/>);
+            list.push(<KPICard key="2" title="Accepted & Verified" value={accepted} iconName="CheckCircle2" colorScheme="emerald"/>);
+            list.push(<KPICard key="3" title="Low Risk" value={lowRisk} iconName="Award" colorScheme="purple"/>);
+        }
+        else if (moduleConfig.id === 'career-profiles') {
+            const allProfiles = data;
+            const readyCount = allProfiles.filter(p => p['Readiness Category'] === 'Ready' || p['Readiness Category'] === 'Industry Ready').length;
+            const withRecommendations = allProfiles.filter(p => !!p['Recommended Role']).length;
+            const reviewed = allProfiles.filter(p => !!p['Review Date']).length;
+            const readyRate = allProfiles.length > 0 ? Math.round((readyCount / allProfiles.length) * 100) : 0;
+            const pendingRecommendations = Math.max(0, allProfiles.length - withRecommendations);
+            const pendingReviewed = Math.max(0, allProfiles.length - reviewed);
+            list.push(<KPICard key="1" title="Career Profiles" value={allProfiles.length} iconName="Compass" colorScheme="blue" subtext={quickCategoryFilter ? `Click to show all ${allProfiles.length}` : 'Student Readiness & Review Directory'} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null}/>);
+            list.push(<KPICard key="2" title="Industry Ready" value={readyCount} iconName="Award" colorScheme="emerald" change={`${readyRate}% Ready`} subtext="Placement verified candidates"/>);
+            list.push(<KPICard key="3" title="Profiles Evaluated & Mapped" value={reviewed} iconName="CheckCircle2" colorScheme="indigo" subtext={`${reviewed} Completed • Click to filter evaluated`} onClick={() => setQuickCategoryFilter(prev => prev === 'CAREER_EVALUATED' ? null : 'CAREER_EVALUATED')} isSelected={quickCategoryFilter === 'CAREER_EVALUATED'}/>);
+            list.push(<KPICard key="4" title="Pending Career Evaluation" value={pendingReviewed} iconName="Clock" colorScheme="amber" change={`${pendingReviewed} Pending`} isPositive={false} subtext="Awaiting Review • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'CAREER_PENDING' ? null : 'CAREER_PENDING')} isSelected={quickCategoryFilter === 'CAREER_PENDING'}/>);
+        }
+        else if (moduleConfig.id === 'finance') {
+            const contract = filteredData.filter(r => r['Entry Type'] === 'Contract Value').reduce((acc, r) => acc + (Number(r['Total Amount']) || 0), 0);
+            const invoice = filteredData.filter(r => r['Entry Type'] === 'Invoice').reduce((acc, r) => acc + (Number(r['Total Amount']) || 0), 0);
+            const receipt = filteredData.filter(r => r['Entry Type'] === 'Receipt').reduce((acc, r) => acc + (Number(r['Total Amount']) || 0), 0);
+            list.push(<KPICard key="1" title="Contract Value" value={formatINR(contract)} iconName="IndianRupee" colorScheme="blue"/>);
+            list.push(<KPICard key="2" title="Invoiced" value={formatINR(invoice)} iconName="FileSpreadsheet" colorScheme="indigo"/>);
+            list.push(<KPICard key="3" title="Receipts Collected" value={formatINR(receipt)} iconName="CheckCircle2" colorScheme="emerald"/>);
+        }
+        return list;
+    }, [moduleConfig.id, filteredData, data, quickCategoryFilter]);
+    return (<div className="space-y-6 animate-in fade-in duration-300">
+      {/* Module Page Header */}
+      <PageHeader number={moduleConfig.number} title={moduleConfig.title} description={moduleConfig.description} columns={moduleConfig.columns} visibleColumns={visibleColumns} onColumnChange={setVisibleColumns} primaryKey={moduleConfig.primaryId} onUploadClick={isReadOnly ? undefined : onUploadClick} onExportClick={isReadOnly ? undefined : handleExportCSV} onAddRecord={isReadOnly ? undefined : handleAddNew} onRefreshClick={() => {
+            setSearchQuery('');
+            setFilters({});
+        }} customActions={
+        // View Switcher Buttons for Attempts (Grouped), Attendance (Matrix), Sessions (Calendar), Applications (Kanban), History (Timeline), Opportunities (Cards/Table)
+        ['assessment-attempts', 'assessment-scores', 'student-files', 'student-submissions', 'attendance', 'sessions', 'applications', 'application-history', 'opportunities'].includes(moduleConfig.id) ? (<div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-xs">
+              {moduleConfig.id === 'opportunities' && (<>
+                  <button onClick={() => setViewMode('cards')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'cards' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Interactive Opportunity Cards Grid">
+                    <LayoutGrid className="w-3.5 h-3.5 text-blue-600"/>
+                    <span>Cards View</span>
+                  </button>
 
-          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Flat All Submissions Log Table">
-            <List className="w-3.5 h-3.5" />
-            <span>Flat Table</span>
-          </button>
-        </>)}
-        {moduleConfig.id === 'student-files' && (<>
-          <button onClick={() => setViewMode('grouped')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'grouped' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Files Grouped by Student">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            <span>Grouped by Student</span>
-          </button>
+                  <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Full 23-column Data Table">
+                    <Table className="w-3.5 h-3.5"/>
+                    <span>Table View</span>
+                  </button>
+                </>)}
 
-          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Flat All Files Log Table">
-            <List className="w-3.5 h-3.5" />
-            <span>Flat Table</span>
-          </button>
-        </>)}
+              {moduleConfig.id === 'student-submissions' && (<>
+                  <button onClick={() => setViewMode('grouped')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'grouped' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Submissions Grouped by Student">
+                    <Layers className="w-3.5 h-3.5 text-blue-600"/>
+                    <span>Grouped by Student</span>
+                  </button>
 
-        {(moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores') && (<>
-          <button onClick={() => setViewMode('grouped')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'grouped' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Attempts Grouped by Student and Stream">
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            <span>Grouped by Student & Stream</span>
-          </button>
+                  <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Flat All Submissions Log Table">
+                    <List className="w-3.5 h-3.5"/>
+                    <span>Flat Table</span>
+                  </button>
+                </>)}
+              {moduleConfig.id === 'student-files' && (<>
+                  <button onClick={() => setViewMode('grouped')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'grouped' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Files Grouped by Student">
+                    <Layers className="w-3.5 h-3.5 text-blue-600"/>
+                    <span>Grouped by Student</span>
+                  </button>
 
-          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Flat All Attempts Log Table">
-            <List className="w-3.5 h-3.5" />
-            <span>Flat Table</span>
-          </button>
-        </>)}
+                  <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Flat All Files Log Table">
+                    <List className="w-3.5 h-3.5"/>
+                    <span>Flat Table</span>
+                  </button>
+                </>)}
 
-        {moduleConfig.id === 'attendance' && (<>
-          <button onClick={() => setViewMode('matrix')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'matrix' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Interactive Student Attendance Register Grid">
-            <LayoutGrid className="w-3.5 h-3.5 text-blue-600" />
-            <span>Attendance Summary</span>
-          </button>
+              {(moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores') && (<>
+                  <button onClick={() => setViewMode('grouped')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'grouped' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Attempts Grouped by Student and Stream">
+                    <Layers className="w-3.5 h-3.5 text-blue-600"/>
+                    <span>Grouped by Student & Stream</span>
+                  </button>
 
-          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Standard Row-by-Row Log Table">
-            <List className="w-3.5 h-3.5" />
-            <span>Log Table</span>
-          </button>
-        </>)}
+                  <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Flat All Attempts Log Table">
+                    <List className="w-3.5 h-3.5"/>
+                    <span>Flat Table</span>
+                  </button>
+                </>)}
 
-        {moduleConfig.id !== 'attendance' && moduleConfig.id !== 'assessment-attempts' && moduleConfig.id !== 'assessment-scores' && moduleConfig.id !== 'student-files' && moduleConfig.id !== 'student-submissions' && moduleConfig.id !== 'opportunities' && (<button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Table View (All fields)">
-          <Table className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Table</span>
-        </button>)}
+              {moduleConfig.id === 'attendance' && (<>
+                  <button onClick={() => setViewMode('matrix')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'matrix' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Interactive Student Attendance Register Grid">
+                    <LayoutGrid className="w-3.5 h-3.5 text-blue-600"/>
+                    <span>Attendance Summary</span>
+                  </button>
 
-        {moduleConfig.id === 'sessions' && (<button onClick={() => setViewMode('calendar')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'calendar' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Calendar View">
-          <CalendarIcon className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Schedule</span>
-        </button>)}
+                  <button onClick={() => setViewMode('table')} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700 shadow-2xs font-bold' : 'text-slate-500 hover:text-slate-800'}`} title="Standard Row-by-Row Log Table">
+                    <List className="w-3.5 h-3.5"/>
+                    <span>Log Table</span>
+                  </button>
+                </>)}
 
-        {moduleConfig.id === 'applications' && (<button onClick={() => setViewMode('kanban')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'kanban' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Pipeline Kanban View">
-          <Kanban className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Pipeline</span>
-        </button>)}
+              {moduleConfig.id !== 'attendance' && moduleConfig.id !== 'assessment-attempts' && moduleConfig.id !== 'assessment-scores' && moduleConfig.id !== 'student-files' && moduleConfig.id !== 'student-submissions' && moduleConfig.id !== 'opportunities' && (<button onClick={() => setViewMode('table')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'table' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Table View (All fields)">
+                  <Table className="w-3.5 h-3.5"/>
+                  <span className="hidden sm:inline">Table</span>
+                </button>)}
 
-        {moduleConfig.id === 'application-history' && (<button onClick={() => setViewMode('timeline')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'timeline' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Timeline View">
-          <Clock className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Timeline</span>
-        </button>)}
-      </div>) : null} />
+              {moduleConfig.id === 'sessions' && (<button onClick={() => setViewMode('calendar')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'calendar' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Calendar View">
+                  <CalendarIcon className="w-3.5 h-3.5"/>
+                  <span className="hidden sm:inline">Schedule</span>
+                </button>)}
 
-    {/* KPI Cards Grid (when not in custom grouped view) */}
-    {summaryKPIs.length > 0 && viewMode !== 'grouped' && viewMode !== 'matrix' && (<div className={`grid grid-cols-1 sm:grid-cols-2 ${summaryKPIs.length >= 5 ? 'lg:grid-cols-5' : summaryKPIs.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
-      {summaryKPIs}
-    </div>)}
+              {moduleConfig.id === 'applications' && (<button onClick={() => setViewMode('kanban')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'kanban' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Pipeline Kanban View">
+                  <Kanban className="w-3.5 h-3.5"/>
+                  <span className="hidden sm:inline">Pipeline</span>
+                </button>)}
 
-    {/* Company Placement Shortlist Analytics Bar for Applications */}
-    {moduleConfig.id === 'applications' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-600" />
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-            Company Placement Shortlist Analytics
-          </h3>
-        </div>
-        <span className="text-xs text-slate-500 font-medium">
-          {(() => {
-            const shortlistedTotal = data.filter(r => ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
-            const pct = data.length > 0 ? Math.round((shortlistedTotal / data.length) * 100) : 0;
-            return `${shortlistedTotal} Shortlisted Candidates across Tier 1, MNCs & Corporate Partners (${pct}% Selection Rate)`;
-          })()}
-        </span>
-      </div>
+              {moduleConfig.id === 'application-history' && (<button onClick={() => setViewMode('timeline')} className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${viewMode === 'timeline' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`} title="Timeline View">
+                  <Clock className="w-3.5 h-3.5"/>
+                  <span className="hidden sm:inline">Timeline</span>
+                </button>)}
+            </div>) : null}/>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {[
-          { company: 'Rareminds', role: 'Talent Solutions & BD', bg: 'bg-purple-50/70', border: 'border-purple-100', text: 'text-purple-900', num: 'text-purple-700', sub: 'text-purple-600/90' },
-          { company: 'PFC', role: 'Finance Executive & Analyst', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
-          { company: 'Radiall', role: 'HR & Finance Ops', bg: 'bg-indigo-50/70', border: 'border-indigo-100', text: 'text-indigo-900', num: 'text-indigo-700', sub: 'text-indigo-600/90' },
-          { company: 'Dell', role: 'Inside Sales & Ops', bg: 'bg-blue-50/70', border: 'border-blue-100', text: 'text-blue-900', num: 'text-blue-700', sub: 'text-blue-600/90' },
-          { company: 'Jp Morgan', role: 'Financial Ops & Analytics', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
-          { company: 'Diageo', role: 'Commercial Finance', bg: 'bg-rose-50/70', border: 'border-rose-100', text: 'text-rose-900', num: 'text-rose-700', sub: 'text-rose-600/90' },
-          { company: 'JMR', role: 'Banking Tech / BA', bg: 'bg-teal-50/70', border: 'border-teal-100', text: 'text-teal-900', num: 'text-teal-700', sub: 'text-teal-600/90' },
-          { company: 'Sutherland', role: 'Sales Ops & CX', bg: 'bg-cyan-50/70', border: 'border-cyan-100', text: 'text-cyan-900', num: 'text-cyan-700', sub: 'text-cyan-600/90' },
-          { company: '5C Network', role: 'Healthcare Operations & BD', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
-          { company: 'Atoll Solutions Private Limited', role: 'Software Engineer Trainee', bg: 'bg-sky-50/70', border: 'border-sky-100', text: 'text-sky-900', num: 'text-sky-700', sub: 'text-sky-600/90' },
-          { company: 'Gagansayi Ventures', role: 'Operations & Marketing', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
-          { company: 'ROLLWELL', role: 'Operations & Finance Executive', bg: 'bg-teal-50/70', border: 'border-teal-100', text: 'text-teal-900', num: 'text-teal-700', sub: 'text-teal-600/90' },
-          { company: 'POSHIUM', role: 'Business Development Associate', bg: 'bg-fuchsia-50/70', border: 'border-fuchsia-100', text: 'text-fuchsia-900', num: 'text-fuchsia-700', sub: 'text-fuchsia-600/90' },
-          { company: 'Brickwork India', role: 'Research & HR Ops', bg: 'bg-violet-50/70', border: 'border-violet-100', text: 'text-violet-900', num: 'text-violet-700', sub: 'text-violet-600/90' },
-          { company: 'Legion Energy', role: 'Energy Operations Executive', bg: 'bg-lime-50/70', border: 'border-lime-100', text: 'text-lime-900', num: 'text-lime-700', sub: 'text-lime-600/90' },
-        ].map(item => {
-          const isSelected = quickCategoryFilter === `COMPANY:${item.company}`;
-          const compApps = data.filter(a => a['Company Name'] === item.company);
-          const totalApplied = compApps.length;
-          const joinedCount = compApps.filter(a => a['Current Stage'] === 'Joined' || a['Final Outcome'] === 'Joined').length;
-          const offeredCount = compApps.filter(a => ['Offered', 'Accepted'].includes(a['Current Stage']) && a['Current Stage'] !== 'Joined').length;
-          const shortlistedCount = compApps.filter(a => a['Current Stage'] === 'Shortlisted').length;
-          const interviewCount = compApps.filter(a => a['Current Stage'] === 'Interview').length;
-          const rejectedCount = compApps.filter(a => a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected').length;
+      {/* KPI Cards Grid (when not in custom grouped view) */}
+      {summaryKPIs.length > 0 && viewMode !== 'grouped' && viewMode !== 'matrix' && (<div className={`grid grid-cols-1 sm:grid-cols-2 ${summaryKPIs.length >= 5 ? 'lg:grid-cols-5' : summaryKPIs.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
+          {summaryKPIs}
+        </div>)}
 
-          return (<div key={item.company} onClick={() => setQuickCategoryFilter(prev => prev === `COMPANY:${item.company}` ? null : `COMPANY:${item.company}`)} className={`p-3.5 rounded-xl border ${item.bg} ${item.border} cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all ${isSelected ? 'ring-2 ring-blue-600 ring-offset-1 shadow-md scale-[1.01]' : ''}`} title={`Filter by ${item.company} (${totalApplied} Applied: ${joinedCount} Joined, ${offeredCount} Offered, ${shortlistedCount} Shortlisted, ${interviewCount} Interview, ${rejectedCount} Rejected)`}>
-            <div className="flex items-center justify-between">
-              <span className={`text-xs font-bold ${item.text} truncate`}>{item.company}</span>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white/80 border border-slate-200/60 text-slate-700">
-                  {totalApplied} Applied
-                </span>
-                {isSelected && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />}
-              </div>
+      {/* Company Placement Shortlist Analytics Bar for Applications */}
+      {moduleConfig.id === 'applications' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600"/>
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                Company Placement Shortlist Analytics
+              </h3>
             </div>
-            <p className={`text-[10px] mt-0.5 truncate ${item.sub}`}>{item.role}</p>
+            <span className="text-xs text-slate-500 font-medium">
+              {(() => {
+                const shortlistedTotal = data.filter(r => ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
+                const pct = data.length > 0 ? Math.round((shortlistedTotal / data.length) * 100) : 0;
+                return `${shortlistedTotal} Shortlisted Candidates across Tier 1, MNCs & Corporate Partners (${pct}% Selection Rate)`;
+            })()}
+            </span>
+          </div>
 
-            <div className="mt-2.5 pt-2 border-t border-slate-200/70 space-y-1 text-[11px]">
-              <div className="flex items-center justify-between">
-                <span className="text-teal-700 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-500 inline-block" /> Joined
-                </span>
-                <span className="font-bold font-mono text-teal-800">{joinedCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-emerald-700 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> Offered
-                </span>
-                <span className="font-bold font-mono text-emerald-800">{offeredCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-blue-700 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" /> Shortlisted
-                </span>
-                <span className="font-bold font-mono text-blue-800">{shortlistedCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-indigo-700 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block" /> Interview
-                </span>
-                <span className="font-bold font-mono text-indigo-800">{interviewCount}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" /> Applied
-                </span>
-                <span className="font-bold font-mono text-slate-800">{totalApplied}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-rose-700 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" /> Rejected
-                </span>
-                <span className="font-bold font-mono text-rose-800">{rejectedCount}</span>
-              </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {[
+                { company: 'Rareminds', role: 'Talent Solutions & BD', bg: 'bg-purple-50/70', border: 'border-purple-100', text: 'text-purple-900', num: 'text-purple-700', sub: 'text-purple-600/90' },
+                { company: 'PFC', role: 'Finance Executive & Analyst', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
+                { company: 'Radiall', role: 'HR & Finance Ops', bg: 'bg-indigo-50/70', border: 'border-indigo-100', text: 'text-indigo-900', num: 'text-indigo-700', sub: 'text-indigo-600/90' },
+                { company: 'Dell', role: 'Inside Sales & Ops', bg: 'bg-blue-50/70', border: 'border-blue-100', text: 'text-blue-900', num: 'text-blue-700', sub: 'text-blue-600/90' },
+                { company: 'Jp Morgan', role: 'Financial Ops & Analytics', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
+                { company: 'Diageo', role: 'Commercial Finance', bg: 'bg-rose-50/70', border: 'border-rose-100', text: 'text-rose-900', num: 'text-rose-700', sub: 'text-rose-600/90' },
+                { company: 'JMR', role: 'Banking Tech / BA', bg: 'bg-teal-50/70', border: 'border-teal-100', text: 'text-teal-900', num: 'text-teal-700', sub: 'text-teal-600/90' },
+                { company: 'Sutherland', role: 'Sales Ops & CX', bg: 'bg-cyan-50/70', border: 'border-cyan-100', text: 'text-cyan-900', num: 'text-cyan-700', sub: 'text-cyan-600/90' },
+                { company: '5C Network', role: 'Healthcare Operations & BD', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
+                { company: 'Atoll Solutions Private Limited', role: 'Software Engineer Trainee', bg: 'bg-sky-50/70', border: 'border-sky-100', text: 'text-sky-900', num: 'text-sky-700', sub: 'text-sky-600/90' },
+                { company: 'Gagansayi Ventures', role: 'Operations & Marketing', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
+                { company: 'ROLLWELL', role: 'Operations & Finance Executive', bg: 'bg-teal-50/70', border: 'border-teal-100', text: 'text-teal-900', num: 'text-teal-700', sub: 'text-teal-600/90' },
+                { company: 'POSHIUM', role: 'Business Development Associate', bg: 'bg-fuchsia-50/70', border: 'border-fuchsia-100', text: 'text-fuchsia-900', num: 'text-fuchsia-700', sub: 'text-fuchsia-600/90' },
+                { company: 'Brickwork India', role: 'Research & HR Ops', bg: 'bg-violet-50/70', border: 'border-violet-100', text: 'text-violet-900', num: 'text-violet-700', sub: 'text-violet-600/90' },
+                { company: 'Legion Energy', role: 'Energy Operations Executive', bg: 'bg-lime-50/70', border: 'border-lime-100', text: 'text-lime-900', num: 'text-lime-700', sub: 'text-lime-600/90' },
+            ].map(item => {
+                const isSelected = quickCategoryFilter === `COMPANY:${item.company}`;
+                const compApps = data.filter(a => a['Company Name'] === item.company);
+                const totalApplied = compApps.length;
+                const joinedCount = compApps.filter(a => a['Current Stage'] === 'Joined' || a['Final Outcome'] === 'Joined').length;
+                const offeredCount = compApps.filter(a => ['Offered', 'Accepted'].includes(a['Current Stage']) && a['Current Stage'] !== 'Joined').length;
+                const shortlistedCount = compApps.filter(a => a['Current Stage'] === 'Shortlisted').length;
+                const interviewCount = compApps.filter(a => a['Current Stage'] === 'Interview').length;
+                const rejectedCount = compApps.filter(a => a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected').length;
+
+                return (<div key={item.company} onClick={() => setQuickCategoryFilter(prev => prev === `COMPANY:${item.company}` ? null : `COMPANY:${item.company}`)} className={`p-3.5 rounded-xl border ${item.bg} ${item.border} cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all ${isSelected ? 'ring-2 ring-blue-600 ring-offset-1 shadow-md scale-[1.01]' : ''}`} title={`Filter by ${item.company} (${totalApplied} Applied: ${joinedCount} Joined, ${offeredCount} Offered, ${shortlistedCount} Shortlisted, ${interviewCount} Interview, ${rejectedCount} Rejected)`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-bold ${item.text} truncate`}>{item.company}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-white/80 border border-slate-200/60 text-slate-700">
+                        {totalApplied} Applied
+                      </span>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"/>}
+                    </div>
+                  </div>
+                  <p className={`text-[10px] mt-0.5 truncate ${item.sub}`}>{item.role}</p>
+
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/70 space-y-1 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-teal-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 inline-block"/> Joined
+                      </span>
+                      <span className="font-bold font-mono text-teal-800">{joinedCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"/> Offered
+                      </span>
+                      <span className="font-bold font-mono text-emerald-800">{offeredCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-blue-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"/> Shortlisted
+                      </span>
+                      <span className="font-bold font-mono text-blue-800">{shortlistedCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"/> Interview
+                      </span>
+                      <span className="font-bold font-mono text-indigo-800">{interviewCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"/> Applied
+                      </span>
+                      <span className="font-bold font-mono text-slate-800">{totalApplied}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-rose-700 font-medium flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"/> Rejected
+                      </span>
+                      <span className="font-bold font-mono text-rose-800">{rejectedCount}</span>
+                    </div>
+                  </div>
+                </div>);
+            })}
+          </div>
+        </div>)}
+
+      {/* Applications: Dedicated Stream-Wise Filter Bar */}
+      {moduleConfig.id === 'applications' && (
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
+              <Layers className="w-4 h-4" />
             </div>
-          </div>);
-        })}
-      </div>
-    </div>)}
-
-    {/* Applications: Dedicated Stream-Wise Filter Bar */}
-    {moduleConfig.id === 'applications' && (
-      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
-            <Layers className="w-4 h-4" />
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
+                Stream-Wise Filter
+                <span className="text-[10px] font-normal text-slate-500 hidden sm:inline">• Filter student applications by academic stream</span>
+              </h4>
+            </div>
           </div>
-          <div>
-            <h4 className="text-xs font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
-              Stream-Wise Filter
-              <span className="text-[10px] font-normal text-slate-500 hidden sm:inline">• Filter student applications by academic stream</span>
-            </h4>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {[
-            { id: null, label: 'All Streams', count: data.length, dot: 'bg-slate-400' },
-            { id: 'STREAM:MBA', label: 'MBA', count: data.filter(a => !String(a['Student ID'] || '').toUpperCase().includes('S126') && String(a.Specialization || '').toUpperCase() !== 'MCA').length, dot: 'bg-blue-500' },
-            { id: 'STREAM:Marketing', label: 'Marketing', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('MARKETING')).length, dot: 'bg-purple-500' },
-            { id: 'STREAM:Finance', label: 'Finance', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('FINANCE')).length, dot: 'bg-emerald-500' },
-            { id: 'STREAM:HR', label: 'HR', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('HR')).length, dot: 'bg-rose-500' },
-            { id: 'STREAM:Business Analytics', label: 'Business Analytics', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('ANALYTICS') || String(a.Specialization || '').toUpperCase().includes('BA')).length, dot: 'bg-amber-500' },
-            { id: 'STREAM:MCA', label: 'MCA', count: data.filter(a => String(a.Specialization || '').toUpperCase() === 'MCA' || String(a['Student ID'] || '').toUpperCase().includes('S126') || String(a['Opportunity ID'] || '').toUpperCase().includes('MCA')).length, dot: 'bg-indigo-500' },
-          ].map(tab => {
-            const isSelected = tab.id === null
-              ? (quickCategoryFilter === null || !quickCategoryFilter.startsWith('STREAM:'))
-              : quickCategoryFilter === tab.id;
-            return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => setQuickCategoryFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${isSelected
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-[1.02]'
-                    : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 border-slate-200'
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { id: null, label: 'All Streams', count: data.length, dot: 'bg-slate-400' },
+              { id: 'STREAM:MBA', label: 'MBA', count: data.filter(a => !String(a['Student ID'] || '').toUpperCase().includes('S126') && String(a.Specialization || '').toUpperCase() !== 'MCA').length, dot: 'bg-blue-500' },
+              { id: 'STREAM:Marketing', label: 'Marketing', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('MARKETING')).length, dot: 'bg-purple-500' },
+              { id: 'STREAM:Finance', label: 'Finance', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('FINANCE')).length, dot: 'bg-emerald-500' },
+              { id: 'STREAM:HR', label: 'HR', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('HR')).length, dot: 'bg-rose-500' },
+              { id: 'STREAM:Business Analytics', label: 'Business Analytics', count: data.filter(a => String(a.Specialization || '').toUpperCase().includes('ANALYTICS') || String(a.Specialization || '').toUpperCase().includes('BA')).length, dot: 'bg-amber-500' },
+              { id: 'STREAM:MCA', label: 'MCA', count: data.filter(a => String(a.Specialization || '').toUpperCase() === 'MCA' || String(a['Student ID'] || '').toUpperCase().includes('S126') || String(a['Opportunity ID'] || '').toUpperCase().includes('MCA')).length, dot: 'bg-indigo-500' },
+            ].map(tab => {
+              const isSelected = tab.id === null 
+                ? (quickCategoryFilter === null || !quickCategoryFilter.startsWith('STREAM:')) 
+                : quickCategoryFilter === tab.id;
+              return (
+                <button
+                  key={tab.label}
+                  type="button"
+                  onClick={() => setQuickCategoryFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-[1.02]'
+                      : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 border-slate-200'
                   }`}
-                title={`Filter ${tab.label} applications (${tab.count})`}
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : tab.dot}`} />
-                <span>{tab.label}</span>
-                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md ${isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200/60'
+                  title={`Filter ${tab.label} applications (${tab.count})`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : tab.dot}`} />
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-white text-slate-600 border border-slate-200/60'
                   }`}>
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    )}
-
-    {/* Career Specializations & Track Analytics Bar */}
-    {moduleConfig.id === 'career-profiles' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-indigo-600" />
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-            Recommended Career Specializations & Domain Alignment
-          </h3>
-        </div>
-        <span className="text-xs text-slate-500 font-medium">
-          Based on RIASEC Profiling, Cognitive Assessments & Industry Gate Evaluation
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        {[
-          {
-            id: 'TRACK:ANALYTICS',
-            title: 'Business & Data Analytics',
-            subtitle: 'Decision Support, BI & Data Interpretation',
-            regex: /\b(business\s*analyst|data\s*analyst|bi\s*analyst|analytics|decision|data\s*scientist)\b/i,
-            bg: 'bg-blue-50/70',
-            border: 'border-blue-100',
-            text: 'text-blue-900',
-            num: 'text-blue-700',
-            sub: 'text-blue-600/90',
-            ring: 'ring-blue-600',
-            dot: 'bg-blue-600',
-          },
-          {
-            id: 'TRACK:BFSI',
-            title: 'Banking, BFSI & AML',
-            subtitle: 'Credit Management, AML & Financial Advisory',
-            regex: /banking|credit|aml|kyc|regulatory|portfolio|broking|finance/i,
-            bg: 'bg-emerald-50/70',
-            border: 'border-emerald-100',
-            text: 'text-emerald-900',
-            num: 'text-emerald-700',
-            sub: 'text-emerald-600/90',
-            ring: 'ring-emerald-600',
-            dot: 'bg-emerald-600',
-          },
-          {
-            id: 'TRACK:MARKETING',
-            title: 'Marketing & Brand Growth',
-            subtitle: 'Consumer Insights, Digital Brand & Growth',
-            regex: /market|brand|consumer|promotion|commerce|growth|creator|creative|design|ad\s*ops/i,
-            bg: 'bg-rose-50/70',
-            border: 'border-rose-100',
-            text: 'text-rose-900',
-            num: 'text-rose-700',
-            sub: 'text-rose-600/90',
-            ring: 'ring-rose-600',
-            dot: 'bg-rose-600',
-          },
-          {
-            id: 'TRACK:HR',
-            title: 'HRBP & People Advisory',
-            subtitle: 'Talent Strategy, HR Operations & Advisory',
-            regex: /hr|people|talent|advisory|counselor|guidance/i,
-            bg: 'bg-indigo-50/70',
-            border: 'border-indigo-100',
-            text: 'text-indigo-900',
-            num: 'text-indigo-700',
-            sub: 'text-indigo-600/90',
-            ring: 'ring-indigo-600',
-            dot: 'bg-indigo-600',
-          },
-          {
-            id: 'TRACK:TECH',
-            title: 'Cloud, AI & Tech Governance',
-            subtitle: 'Full-Stack, Cloud & Compliance Architecture',
-            regex: /cloud|ai|finops|governance|developer|tech|security/i,
-            bg: 'bg-purple-50/70',
-            border: 'border-purple-100',
-            text: 'text-purple-900',
-            num: 'text-purple-700',
-            sub: 'text-purple-600/90',
-            ring: 'ring-purple-600',
-            dot: 'bg-purple-600',
-          },
-        ].map(track => {
-          const isSelected = quickCategoryFilter === track.id;
-          const count = data.filter(p => track.regex.test(String(p['Recommended Role'] || ''))).length;
-          return (<div key={track.id} onClick={() => setQuickCategoryFilter(prev => prev === track.id ? null : track.id)} className={`p-3 rounded-xl border ${track.bg} ${track.border} cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${isSelected ? `ring-2 ${track.ring} ring-offset-1 shadow-md scale-[1.02]` : ''}`} title={`Click to filter ${track.title} candidates (${count})`}>
-            <div className="flex items-center justify-between">
-              <div className={`text-xs font-semibold ${track.text}`}>{track.title}</div>
-              {isSelected && <span className={`w-2 h-2 rounded-full ${track.dot} shrink-0 animate-pulse`} />}
-            </div>
-            <div className={`text-xl font-black font-mono mt-1 ${track.num}`}>
-              {count} <span className="text-xs font-normal opacity-85">Candidates</span>
-            </div>
-            <p className={`text-[11px] mt-0.5 ${track.sub}`}>
-              {isSelected ? '✓ Filter Active • Click to clear' : track.subtitle}
-            </p>
-          </div>);
-        })}
-      </div>
-    </div>)}
-
-    {/* Stream-Wise Company Mapping Bar for Market Opportunity */}
-    {moduleConfig.id === 'companies' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-        <div className="flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-blue-600" />
-          <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-            Stream-Wise Company Mapping & Recruiter Segregation
-          </h3>
-        </div>
-        <span className="text-xs text-slate-500 font-medium">
-          Filter companies by targeted academic stream & specialization
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {[
-          {
-            id: 'STREAM:Finance',
-            title: 'Finance Stream',
-            subtitle: 'Corporate Finance, BFSI & Valuation',
-            streamKey: 'Finance',
-            bg: 'bg-emerald-50/70',
-            border: 'border-emerald-100',
-            text: 'text-emerald-900',
-            num: 'text-emerald-700',
-            sub: 'text-emerald-600/90',
-            ring: 'ring-emerald-600',
-            dot: 'bg-emerald-600',
-          },
-          {
-            id: 'STREAM:Marketing',
-            title: 'Marketing Stream',
-            subtitle: 'Brand Strategy, Growth & MarTech',
-            streamKey: 'Marketing',
-            bg: 'bg-rose-50/70',
-            border: 'border-rose-100',
-            text: 'text-rose-900',
-            num: 'text-rose-700',
-            sub: 'text-rose-600/90',
-            ring: 'ring-rose-600',
-            dot: 'bg-rose-600',
-          },
-          {
-            id: 'STREAM:HR',
-            title: 'HR Stream',
-            subtitle: 'Talent Acquisition & People Ops',
-            streamKey: 'HR',
-            bg: 'bg-blue-50/70',
-            border: 'border-blue-100',
-            text: 'text-blue-900',
-            num: 'text-blue-700',
-            sub: 'text-blue-600/90',
-            ring: 'ring-blue-600',
-            dot: 'bg-blue-600',
-          },
-          {
-            id: 'STREAM:Business Analyst',
-            title: 'Business Analyst',
-            subtitle: 'Analytics, Operations & BI',
-            streamKey: 'Business Analyst',
-            bg: 'bg-amber-50/70',
-            border: 'border-amber-100',
-            text: 'text-amber-900',
-            num: 'text-amber-700',
-            sub: 'text-amber-600/90',
-            ring: 'ring-amber-600',
-            dot: 'bg-amber-600',
-          },
-          {
-            id: 'STREAM:MCA',
-            title: 'MCA Stream',
-            subtitle: 'Full-Stack, Cloud, AI/ML & DevOps',
-            streamKey: 'MCA',
-            bg: 'bg-purple-50/70',
-            border: 'border-purple-100',
-            text: 'text-purple-900',
-            num: 'text-purple-700',
-            sub: 'text-purple-600/90',
-            ring: 'ring-purple-600',
-            dot: 'bg-purple-600',
-          },
-        ].map(stream => {
-          const isSelected = quickCategoryFilter === stream.id;
-          const count = data.filter(c => String(c['Mapped Stream'] || '').toUpperCase().includes(stream.streamKey.toUpperCase())).length;
-          return (<div key={stream.id} onClick={() => setQuickCategoryFilter(prev => prev === stream.id ? null : stream.id)} className={`p-3 rounded-xl border ${stream.bg} ${stream.border} cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${isSelected ? `ring-2 ${stream.ring} ring-offset-1 shadow-md scale-[1.02]` : ''}`} title={`Click to filter companies mapped to ${stream.title} (${count})`}>
-            <div className="flex items-center justify-between">
-              <div className={`text-xs font-semibold ${stream.text}`}>{stream.title}</div>
-              {isSelected && <span className={`w-2 h-2 rounded-full ${stream.dot} shrink-0 animate-pulse`} />}
-            </div>
-            <div className={`text-xl font-black font-mono mt-1 ${stream.num}`}>
-              {count} <span className="text-xs font-normal opacity-85">Companies</span>
-            </div>
-            <p className={`text-[11px] mt-0.5 ${stream.sub}`}>
-              {isSelected ? '✓ Filter Active • Click to clear' : stream.subtitle}
-            </p>
-          </div>);
-        })}
-      </div>
-    </div>)}
-
-    {/* Assessment Grouped View (Student, Stream & Subject Grouping) */}
-    {viewMode === 'grouped' && (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores') && (<AssessmentGroupedView attempts={moduleConfig.id === 'assessment-attempts' ? data : allAssessmentAttempts} allStudents={allStudents} onStudentClick={onStudentClick} onAttemptClick={onRowClick} />)}
-
-    {/* Student Files Grouped View (Student & Stream Grouping) */}
-    {viewMode === 'grouped' && moduleConfig.id === 'student-files' && (<StudentFilesGroupedView files={data} allStudents={allStudents} onStudentClick={onStudentClick} onFilePreview={(rec) => setPreviewFile(rec)} />)}
-
-    {/* Student Submissions Grouped View (Student & Stream Grouping) */}
-    {viewMode === 'grouped' && moduleConfig.id === 'student-submissions' && (<StudentSubmissionsGroupedView submissions={data} allStudents={allStudents} onStudentClick={onStudentClick} onSubmissionClick={onRowClick} />)}
-
-    {/* Attendance Matrix View (Register Grid) */}
-    {viewMode === 'matrix' && moduleConfig.id === 'attendance' && (<AttendanceMatrixView allStudents={allStudents} allSessions={allSessions} allAttendance={data} onStudentClick={onStudentClick} onUpsertAttendance={isReadOnly ? undefined : onUpsertAttendance} onAddSessionColumn={isReadOnly ? undefined : onAddSessionColumn} />)}
-
-    {/* Active Report Filter Banner */}
-    {quickCategoryFilter && (<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50/90 border border-blue-200/90 px-4 py-3 rounded-2xl text-xs text-blue-900 shadow-xs animate-in fade-in">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-bold flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-          Active Report Filter:
-        </span>
-        <span className="bg-white px-2.5 py-1 rounded-lg font-bold text-blue-700 border border-blue-200 shadow-2xs">
-          {quickCategoryFilter === 'SHORTLISTED' && `Shortlisted Candidates (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'INTERVIEW' && `Technical & GD Interview Candidates (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'OFFERED' && `Official Job Offer Candidates (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'JOINED' && `Offers Accepted / Joined Candidates (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'APPLIED' && `All Campus Applications Submitted (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'AWAITING_FEEDBACK' && `Awaiting Corporate Feedback (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'NOT_MAPPED' && `Not Mapped / Screening Feedback Awaited (${filteredData.length} Records)`}
-          {quickCategoryFilter === 'CAREER_PENDING' && `Pending Career Evaluation (${filteredData.length} Students)`}
-          {quickCategoryFilter === 'CAREER_EVALUATED' && `Evaluated & Role Mapped Candidates (${filteredData.length} Students)`}
-          {quickCategoryFilter === 'TRACK:ANALYTICS' && 'Business & Data Analytics Track Candidates'}
-          {quickCategoryFilter === 'TRACK:BFSI' && 'Banking, BFSI & AML Track Candidates'}
-          {quickCategoryFilter === 'TRACK:MARKETING' && 'Marketing & Brand Growth Track Candidates'}
-          {quickCategoryFilter === 'TRACK:HR' && 'HRBP & People Advisory Track Candidates'}
-          {quickCategoryFilter === 'TRACK:TECH' && 'Cloud, AI & Tech Governance Track Candidates'}
-          {quickCategoryFilter.startsWith('STREAM:') && (moduleConfig.id === 'applications' ? `${quickCategoryFilter.replace('STREAM:', '')} Stream Candidates (${filteredData.length} Applications)` : `Companies Mapped to ${quickCategoryFilter.replace('STREAM:', '')} Stream (${filteredData.length} Companies)`)}
-          {quickCategoryFilter.startsWith('COMPANY:') && `${quickCategoryFilter.replace('COMPANY:', '')} Shortlisted Candidates (${filteredData.length} Records)`}
-        </span>
-        <span className="text-blue-600 font-medium">Showing {filteredData.length} of {data.length} records</span>
-      </div>
-      <button onClick={() => setQuickCategoryFilter(null)} className="font-bold text-blue-700 hover:text-blue-950 bg-white hover:bg-blue-100/70 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs">
-        Clear Filter (Show All {data.length})
-      </button>
-    </div>)}
-
-    {/* Filter Bar (for table views and opportunities cards view) */}
-    {(viewMode === 'table' || (viewMode === 'cards' && moduleConfig.id === 'opportunities')) && (<FilterBar searchQuery={searchQuery} onSearchChange={setSearchQuery} filters={filters} onFilterChange={(key, val) => setFilters(prev => ({ ...prev, [key]: val }))} onClearFilters={() => {
-      setSearchQuery('');
-      setFilters({});
-      setQuickCategoryFilter(null);
-    }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length} placeholder={moduleConfig.id === 'applications' ? 'Search by Student Name, Company Name, Application ID, Opportunity ID...' : undefined} />)}
-
-    {/* Main View: Standard Full-Field Data Table */}
-    {viewMode === 'table' && (<DataTable columns={moduleConfig.columns} visibleColumns={visibleColumns} data={filteredData} primaryKey={moduleConfig.primaryId} defaultSortKey={moduleConfig.id === 'applications' ? 'Current Stage' : (['opportunities', 'assessment-attempts', 'assessment-scores'].includes(moduleConfig.id) ? null : moduleConfig.primaryId)} defaultSortDirection="asc" allStudents={allStudents} allOpportunities={allOpportunities} onRowClick={onRowClick} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick} onEditRow={isReadOnly ? undefined : handleEditRow} onDeleteRow={isReadOnly ? undefined : handleDeleteRow} onFilePreview={moduleConfig.id === 'student-files' ? (rec) => setPreviewFile(rec) : undefined} moduleTitle={moduleConfig.title} />)}
-
-    {/* Opportunities Card Grid View */}
-    {viewMode === 'cards' && moduleConfig.id === 'opportunities' && (<div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {paginatedOppCards.map(opp => {
-          const roleTitle = opp['Role Title'] || opp['Role'] || opp['Job Title'] || opp['Opportunity Title'] || 'Career Opportunity';
-          const companyName = opp['Company Name'] || (opp['Company ID'] && companyLookupMap.get(opp['Company ID'])) || opp['Company ID'] || 'Confidential';
-          const location = opp['Location'] || opp['Job Location'] || opp['City'];
-          const skillsStr = opp['Required Skills'] || opp['Skills Required'] || '';
-          const skills = typeof skillsStr === 'string'
-            ? skillsStr.split(/[,;|]/).map((s) => s.trim()).filter(Boolean).slice(0, 4)
-            : [];
-          const salaryStr = opp['Total CTC'] && Number(opp['Total CTC']) > 0
-            ? formatINR(opp['Total CTC'])
-            : opp['Salary Period/Currency'] && opp['Salary Period/Currency'] !== 'Disclosed on application'
-              ? opp['Salary Period/Currency']
-              : opp['Fixed Pay'] && Number(opp['Fixed Pay']) > 0
-                ? formatINR(opp['Fixed Pay'])
-                : 'Competitive';
-          return (<div key={opp['Opportunity ID']} onClick={() => onRowClick(opp)} className="group bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden">
-            {/* Card Header Banner */}
-            <div className="p-5 pb-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="truncate">{companyName}</span>
-                  </div>
-                  <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1" title={roleTitle}>
-                    {roleTitle}
-                  </h4>
-                </div>
-                <StatusBadge value={opp['Opportunity Status'] || 'Open'} />
-              </div>
-
-              {/* Metadata tags */}
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                {opp['Work Mode'] && (<span className="px-2 py-0.5 rounded-md bg-slate-100 font-medium text-slate-700">
-                  {opp['Work Mode']}
-                </span>)}
-                {location && (<span className="flex items-center gap-1 text-slate-500">
-                  <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="truncate max-w-[140px]">{location}</span>
-                </span>)}
-                {opp['Openings Count'] && Number(opp['Openings Count']) > 0 && (<span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold text-[11px]">
-                  {opp['Openings Count']} {Number(opp['Openings Count']) === 1 ? 'Opening' : 'Openings'}
-                </span>)}
-              </div>
-
-              {/* Compensation & Stream Block */}
-              <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 p-3 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Offered CTC / Stipend</div>
-                  <div className="text-sm font-extrabold text-emerald-700 font-mono mt-0.5">
-                    {salaryStr}
-                  </div>
-                </div>
-                {opp['Eligible Streams'] && (<div className="text-right">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Eligible Streams</div>
-                  <div className="text-xs font-semibold text-slate-700 truncate max-w-[130px] mt-0.5" title={opp['Eligible Streams']}>
-                    {opp['Eligible Streams']}
-                  </div>
-                </div>)}
-              </div>
-
-              {/* Skills Chips */}
-              {skills.length > 0 && (<div className="flex flex-wrap gap-1.5 pt-1">
-                {skills.map((skill, idx) => (<span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium transition-colors">
-                  {skill}
-                </span>))}
-              </div>)}
-            </div>
-
-            {/* Card Footer Actions */}
-            <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-3">
-              <span className="font-mono text-[11px] font-bold text-slate-500">
-                {opp['Opportunity ID']}
-              </span>
-
-              <div className="flex items-center gap-2">
-                {(opp['JD URL'] || opp['Application URL']) && (<a href={opp['JD URL'] || opp['Application URL']} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg shadow-2xs transition-colors" title="Open external Job Description">
-                  <span>JD</span>
-                  <ExternalLink className="w-3 h-3 opacity-70" />
-                </a>)}
-                <button type="button" className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs hover:bg-slate-50 transition-colors">
-                  Details →
+                    {tab.count}
+                  </span>
                 </button>
-              </div>
-            </div>
-          </div>);
-        })}
-      </div>
-
-      {/* Pagination Controls */}
-      {totalOppPages > 1 && (<div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="text-xs text-slate-500 font-medium">
-          Showing <span className="font-bold text-slate-900 font-mono">{(oppPage - 1) * oppPageSize + 1}</span> to{' '}
-          <span className="font-bold text-slate-900 font-mono">{Math.min(oppPage * oppPageSize, filteredData.length)}</span> of{' '}
-          <span className="font-bold text-slate-900 font-mono">{filteredData.length}</span> opportunities
+              );
+            })}
+          </div>
         </div>
+      )}
 
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => setOppPage(p => Math.max(1, p - 1))} disabled={oppPage === 1} className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Previous Page">
-            <ChevronLeft className="w-4 h-4" />
+      {/* Career Specializations & Track Analytics Bar */}
+      {moduleConfig.id === 'career-profiles' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600"/>
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                Recommended Career Specializations & Domain Alignment
+              </h3>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              Based on RIASEC Profiling, Cognitive Assessments & Industry Gate Evaluation
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {[
+                {
+                    id: 'TRACK:ANALYTICS',
+                    title: 'Business & Data Analytics',
+                    subtitle: 'Decision Support, BI & Data Interpretation',
+                    regex: /\b(business\s*analyst|data\s*analyst|bi\s*analyst|analytics|decision|data\s*scientist)\b/i,
+                    bg: 'bg-blue-50/70',
+                    border: 'border-blue-100',
+                    text: 'text-blue-900',
+                    num: 'text-blue-700',
+                    sub: 'text-blue-600/90',
+                    ring: 'ring-blue-600',
+                    dot: 'bg-blue-600',
+                },
+                {
+                    id: 'TRACK:BFSI',
+                    title: 'Banking, BFSI & AML',
+                    subtitle: 'Credit Management, AML & Financial Advisory',
+                    regex: /banking|credit|aml|kyc|regulatory|portfolio|broking|finance/i,
+                    bg: 'bg-emerald-50/70',
+                    border: 'border-emerald-100',
+                    text: 'text-emerald-900',
+                    num: 'text-emerald-700',
+                    sub: 'text-emerald-600/90',
+                    ring: 'ring-emerald-600',
+                    dot: 'bg-emerald-600',
+                },
+                {
+                    id: 'TRACK:MARKETING',
+                    title: 'Marketing & Brand Growth',
+                    subtitle: 'Consumer Insights, Digital Brand & Growth',
+                    regex: /market|brand|consumer|promotion|commerce|growth|creator|creative|design|ad\s*ops/i,
+                    bg: 'bg-rose-50/70',
+                    border: 'border-rose-100',
+                    text: 'text-rose-900',
+                    num: 'text-rose-700',
+                    sub: 'text-rose-600/90',
+                    ring: 'ring-rose-600',
+                    dot: 'bg-rose-600',
+                },
+                {
+                    id: 'TRACK:HR',
+                    title: 'HRBP & People Advisory',
+                    subtitle: 'Talent Strategy, HR Operations & Advisory',
+                    regex: /hr|people|talent|advisory|counselor|guidance/i,
+                    bg: 'bg-indigo-50/70',
+                    border: 'border-indigo-100',
+                    text: 'text-indigo-900',
+                    num: 'text-indigo-700',
+                    sub: 'text-indigo-600/90',
+                    ring: 'ring-indigo-600',
+                    dot: 'bg-indigo-600',
+                },
+                {
+                    id: 'TRACK:TECH',
+                    title: 'Cloud, AI & Tech Governance',
+                    subtitle: 'Full-Stack, Cloud & Compliance Architecture',
+                    regex: /cloud|ai|finops|governance|developer|tech|security/i,
+                    bg: 'bg-purple-50/70',
+                    border: 'border-purple-100',
+                    text: 'text-purple-900',
+                    num: 'text-purple-700',
+                    sub: 'text-purple-600/90',
+                    ring: 'ring-purple-600',
+                    dot: 'bg-purple-600',
+                },
+            ].map(track => {
+                const isSelected = quickCategoryFilter === track.id;
+                const count = data.filter(p => track.regex.test(String(p['Recommended Role'] || ''))).length;
+                return (<div key={track.id} onClick={() => setQuickCategoryFilter(prev => prev === track.id ? null : track.id)} className={`p-3 rounded-xl border ${track.bg} ${track.border} cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${isSelected ? `ring-2 ${track.ring} ring-offset-1 shadow-md scale-[1.02]` : ''}`} title={`Click to filter ${track.title} candidates (${count})`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-xs font-semibold ${track.text}`}>{track.title}</div>
+                    {isSelected && <span className={`w-2 h-2 rounded-full ${track.dot} shrink-0 animate-pulse`}/>}
+                  </div>
+                  <div className={`text-xl font-black font-mono mt-1 ${track.num}`}>
+                    {count} <span className="text-xs font-normal opacity-85">Candidates</span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${track.sub}`}>
+                    {isSelected ? '✓ Filter Active • Click to clear' : track.subtitle}
+                  </p>
+                </div>);
+            })}
+          </div>
+        </div>)}
+
+      {/* Stream-Wise Company Mapping Bar for Market Opportunity */}
+      {moduleConfig.id === 'companies' && (<div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-blue-600"/>
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                Stream-Wise Company Mapping & Recruiter Segregation
+              </h3>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              Filter companies by targeted academic stream & specialization
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {[
+                {
+                    id: 'STREAM:Finance',
+                    title: 'Finance Stream',
+                    subtitle: 'Corporate Finance, BFSI & Valuation',
+                    streamKey: 'Finance',
+                    bg: 'bg-emerald-50/70',
+                    border: 'border-emerald-100',
+                    text: 'text-emerald-900',
+                    num: 'text-emerald-700',
+                    sub: 'text-emerald-600/90',
+                    ring: 'ring-emerald-600',
+                    dot: 'bg-emerald-600',
+                },
+                {
+                    id: 'STREAM:Marketing',
+                    title: 'Marketing Stream',
+                    subtitle: 'Brand Strategy, Growth & MarTech',
+                    streamKey: 'Marketing',
+                    bg: 'bg-rose-50/70',
+                    border: 'border-rose-100',
+                    text: 'text-rose-900',
+                    num: 'text-rose-700',
+                    sub: 'text-rose-600/90',
+                    ring: 'ring-rose-600',
+                    dot: 'bg-rose-600',
+                },
+                {
+                    id: 'STREAM:HR',
+                    title: 'HR Stream',
+                    subtitle: 'Talent Acquisition & People Ops',
+                    streamKey: 'HR',
+                    bg: 'bg-blue-50/70',
+                    border: 'border-blue-100',
+                    text: 'text-blue-900',
+                    num: 'text-blue-700',
+                    sub: 'text-blue-600/90',
+                    ring: 'ring-blue-600',
+                    dot: 'bg-blue-600',
+                },
+                {
+                    id: 'STREAM:Business Analyst',
+                    title: 'Business Analyst',
+                    subtitle: 'Analytics, Operations & BI',
+                    streamKey: 'Business Analyst',
+                    bg: 'bg-amber-50/70',
+                    border: 'border-amber-100',
+                    text: 'text-amber-900',
+                    num: 'text-amber-700',
+                    sub: 'text-amber-600/90',
+                    ring: 'ring-amber-600',
+                    dot: 'bg-amber-600',
+                },
+                {
+                    id: 'STREAM:MCA',
+                    title: 'MCA Stream',
+                    subtitle: 'Full-Stack, Cloud, AI/ML & DevOps',
+                    streamKey: 'MCA',
+                    bg: 'bg-purple-50/70',
+                    border: 'border-purple-100',
+                    text: 'text-purple-900',
+                    num: 'text-purple-700',
+                    sub: 'text-purple-600/90',
+                    ring: 'ring-purple-600',
+                    dot: 'bg-purple-600',
+                },
+            ].map(stream => {
+                const isSelected = quickCategoryFilter === stream.id;
+                const count = data.filter(c => String(c['Mapped Stream'] || '').toUpperCase().includes(stream.streamKey.toUpperCase())).length;
+                return (<div key={stream.id} onClick={() => setQuickCategoryFilter(prev => prev === stream.id ? null : stream.id)} className={`p-3 rounded-xl border ${stream.bg} ${stream.border} cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all ${isSelected ? `ring-2 ${stream.ring} ring-offset-1 shadow-md scale-[1.02]` : ''}`} title={`Click to filter companies mapped to ${stream.title} (${count})`}>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-xs font-semibold ${stream.text}`}>{stream.title}</div>
+                    {isSelected && <span className={`w-2 h-2 rounded-full ${stream.dot} shrink-0 animate-pulse`}/>}
+                  </div>
+                  <div className={`text-xl font-black font-mono mt-1 ${stream.num}`}>
+                    {count} <span className="text-xs font-normal opacity-85">Companies</span>
+                  </div>
+                  <p className={`text-[11px] mt-0.5 ${stream.sub}`}>
+                    {isSelected ? '✓ Filter Active • Click to clear' : stream.subtitle}
+                  </p>
+                </div>);
+            })}
+          </div>
+        </div>)}
+
+      {/* Assessment Grouped View (Student, Stream & Subject Grouping) */}
+      {viewMode === 'grouped' && (moduleConfig.id === 'assessment-attempts' || moduleConfig.id === 'assessment-scores') && (<AssessmentGroupedView attempts={moduleConfig.id === 'assessment-attempts' ? data : allAssessmentAttempts} allStudents={allStudents} onStudentClick={onStudentClick} onAttemptClick={onRowClick}/>)}
+
+      {/* Student Files Grouped View (Student & Stream Grouping) */}
+      {viewMode === 'grouped' && moduleConfig.id === 'student-files' && (<StudentFilesGroupedView files={data} allStudents={allStudents} onStudentClick={onStudentClick} onFilePreview={(rec) => setPreviewFile(rec)}/>)}
+
+      {/* Student Submissions Grouped View (Student & Stream Grouping) */}
+      {viewMode === 'grouped' && moduleConfig.id === 'student-submissions' && (<StudentSubmissionsGroupedView submissions={data} allStudents={allStudents} onStudentClick={onStudentClick} onSubmissionClick={onRowClick}/>)}
+
+      {/* Attendance Matrix View (Register Grid) */}
+      {viewMode === 'matrix' && moduleConfig.id === 'attendance' && (<AttendanceMatrixView allStudents={allStudents} allSessions={allSessions} allAttendance={data} onStudentClick={onStudentClick} onUpsertAttendance={isReadOnly ? undefined : onUpsertAttendance} onAddSessionColumn={isReadOnly ? undefined : onAddSessionColumn}/>)}
+
+      {/* Active Report Filter Banner */}
+      {quickCategoryFilter && (<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-blue-50/90 border border-blue-200/90 px-4 py-3 rounded-2xl text-xs text-blue-900 shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"/>
+              Active Report Filter:
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-lg font-bold text-blue-700 border border-blue-200 shadow-2xs">
+              {quickCategoryFilter === 'SHORTLISTED' && `Shortlisted Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'INTERVIEW' && `Technical & GD Interview Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'OFFERED' && `Official Job Offer Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'JOINED' && `Offers Accepted / Joined Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'APPLIED' && `All Campus Applications Submitted (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'AWAITING_FEEDBACK' && `Awaiting Corporate Feedback (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'NOT_MAPPED' && `Not Mapped / Screening Feedback Awaited (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'CAREER_PENDING' && `Pending Career Evaluation (${filteredData.length} Students)`}
+              {quickCategoryFilter === 'CAREER_EVALUATED' && `Evaluated & Role Mapped Candidates (${filteredData.length} Students)`}
+              {quickCategoryFilter === 'TRACK:ANALYTICS' && 'Business & Data Analytics Track Candidates'}
+              {quickCategoryFilter === 'TRACK:BFSI' && 'Banking, BFSI & AML Track Candidates'}
+              {quickCategoryFilter === 'TRACK:MARKETING' && 'Marketing & Brand Growth Track Candidates'}
+              {quickCategoryFilter === 'TRACK:HR' && 'HRBP & People Advisory Track Candidates'}
+              {quickCategoryFilter === 'TRACK:TECH' && 'Cloud, AI & Tech Governance Track Candidates'}
+              {quickCategoryFilter.startsWith('STREAM:') && (moduleConfig.id === 'applications' ? `${quickCategoryFilter.replace('STREAM:', '')} Stream Candidates (${filteredData.length} Applications)` : `Companies Mapped to ${quickCategoryFilter.replace('STREAM:', '')} Stream (${filteredData.length} Companies)`)}
+              {quickCategoryFilter.startsWith('COMPANY:') && `${quickCategoryFilter.replace('COMPANY:', '')} Shortlisted Candidates (${filteredData.length} Records)`}
+            </span>
+            <span className="text-blue-600 font-medium">Showing {filteredData.length} of {data.length} records</span>
+          </div>
+          <button onClick={() => setQuickCategoryFilter(null)} className="font-bold text-blue-700 hover:text-blue-950 bg-white hover:bg-blue-100/70 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors cursor-pointer self-start sm:self-auto shrink-0 shadow-2xs">
+            Clear Filter (Show All {data.length})
           </button>
+        </div>)}
 
-          <div className="flex items-center gap-1 px-2">
-            {Array.from({ length: Math.min(5, totalOppPages) }, (_, i) => {
-              let pageNum = oppPage;
-              if (totalOppPages <= 5) {
-                pageNum = i + 1;
-              }
-              else if (oppPage <= 3) {
-                pageNum = i + 1;
-              }
-              else if (oppPage >= totalOppPages - 2) {
-                pageNum = totalOppPages - 4 + i;
-              }
-              else {
-                pageNum = oppPage - 2 + i;
-              }
-              return (<button key={pageNum} onClick={() => setOppPage(pageNum)} className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${oppPage === pageNum
-                ? 'bg-blue-600 text-white shadow-2xs'
-                : 'text-slate-600 hover:bg-slate-100'}`}>
-                {pageNum}
-              </button>);
+      {/* Filter Bar (for table views and opportunities cards view) */}
+      {(viewMode === 'table' || (viewMode === 'cards' && moduleConfig.id === 'opportunities')) && (<FilterBar searchQuery={searchQuery} onSearchChange={setSearchQuery} filters={filters} onFilterChange={(key, val) => setFilters(prev => ({ ...prev, [key]: val }))} onClearFilters={() => {
+                setSearchQuery('');
+                setFilters({});
+                setQuickCategoryFilter(null);
+            }} filterableColumns={moduleConfig.columns} totalRecords={data.length} filteredCount={filteredData.length} placeholder={moduleConfig.id === 'applications' ? 'Search by Student Name, Company Name, Application ID, Opportunity ID...' : undefined}/>)}
+
+      {/* Main View: Standard Full-Field Data Table */}
+      {viewMode === 'table' && (<DataTable columns={moduleConfig.columns} visibleColumns={visibleColumns} data={filteredData} primaryKey={moduleConfig.primaryId} defaultSortKey={moduleConfig.id === 'applications' ? 'Current Stage' : (['opportunities', 'assessment-attempts', 'assessment-scores'].includes(moduleConfig.id) ? null : moduleConfig.primaryId)} defaultSortDirection="asc" allStudents={allStudents} allOpportunities={allOpportunities} onRowClick={onRowClick} onStudentClick={onStudentClick} onRelatedClick={onRelatedClick} onEditRow={isReadOnly ? undefined : handleEditRow} onDeleteRow={isReadOnly ? undefined : handleDeleteRow} onFilePreview={moduleConfig.id === 'student-files' ? (rec) => setPreviewFile(rec) : undefined} moduleTitle={moduleConfig.title}/>)}
+
+      {/* Opportunities Card Grid View */}
+      {viewMode === 'cards' && moduleConfig.id === 'opportunities' && (<div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {paginatedOppCards.map(opp => {
+                const roleTitle = opp['Role Title'] || opp['Role'] || opp['Job Title'] || opp['Opportunity Title'] || 'Career Opportunity';
+                const companyName = opp['Company Name'] || (opp['Company ID'] && companyLookupMap.get(opp['Company ID'])) || opp['Company ID'] || 'Confidential';
+                const location = opp['Location'] || opp['Job Location'] || opp['City'];
+                const skillsStr = opp['Required Skills'] || opp['Skills Required'] || '';
+                const skills = typeof skillsStr === 'string'
+                    ? skillsStr.split(/[,;|]/).map((s) => s.trim()).filter(Boolean).slice(0, 4)
+                    : [];
+                const salaryStr = opp['Total CTC'] && Number(opp['Total CTC']) > 0
+                    ? formatINR(opp['Total CTC'])
+                    : opp['Salary Period/Currency'] && opp['Salary Period/Currency'] !== 'Disclosed on application'
+                        ? opp['Salary Period/Currency']
+                        : opp['Fixed Pay'] && Number(opp['Fixed Pay']) > 0
+                            ? formatINR(opp['Fixed Pay'])
+                            : 'Competitive';
+                return (<div key={opp['Opportunity ID']} onClick={() => onRowClick(opp)} className="group bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden">
+                  {/* Card Header Banner */}
+                  <div className="p-5 pb-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mb-1">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0"/>
+                          <span className="truncate">{companyName}</span>
+                        </div>
+                        <h4 className="text-base font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1" title={roleTitle}>
+                          {roleTitle}
+                        </h4>
+                      </div>
+                      <StatusBadge value={opp['Opportunity Status'] || 'Open'}/>
+                    </div>
+
+                    {/* Metadata tags */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      {opp['Work Mode'] && (<span className="px-2 py-0.5 rounded-md bg-slate-100 font-medium text-slate-700">
+                          {opp['Work Mode']}
+                        </span>)}
+                      {location && (<span className="flex items-center gap-1 text-slate-500">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0"/>
+                          <span className="truncate max-w-[140px]">{location}</span>
+                        </span>)}
+                      {opp['Openings Count'] && Number(opp['Openings Count']) > 0 && (<span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold text-[11px]">
+                          {opp['Openings Count']} {Number(opp['Openings Count']) === 1 ? 'Opening' : 'Openings'}
+                        </span>)}
+                    </div>
+
+                    {/* Compensation & Stream Block */}
+                    <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 p-3 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Offered CTC / Stipend</div>
+                        <div className="text-sm font-extrabold text-emerald-700 font-mono mt-0.5">
+                          {salaryStr}
+                        </div>
+                      </div>
+                      {opp['Eligible Streams'] && (<div className="text-right">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Eligible Streams</div>
+                          <div className="text-xs font-semibold text-slate-700 truncate max-w-[130px] mt-0.5" title={opp['Eligible Streams']}>
+                            {opp['Eligible Streams']}
+                          </div>
+                        </div>)}
+                    </div>
+
+                    {/* Skills Chips */}
+                    {skills.length > 0 && (<div className="flex flex-wrap gap-1.5 pt-1">
+                        {skills.map((skill, idx) => (<span key={idx} className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium transition-colors">
+                            {skill}
+                          </span>))}
+                      </div>)}
+                  </div>
+
+                  {/* Card Footer Actions */}
+                  <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <span className="font-mono text-[11px] font-bold text-slate-500">
+                      {opp['Opportunity ID']}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      {(opp['JD URL'] || opp['Application URL']) && (<a href={opp['JD URL'] || opp['Application URL']} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg shadow-2xs transition-colors" title="Open external Job Description">
+                          <span>JD</span>
+                          <ExternalLink className="w-3 h-3 opacity-70"/>
+                        </a>)}
+                      <button type="button" className="px-2.5 py-1 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white border border-slate-200 rounded-lg shadow-2xs hover:bg-slate-50 transition-colors">
+                        Details →
+                      </button>
+                    </div>
+                  </div>
+                </div>);
             })}
           </div>
 
-          <button onClick={() => setOppPage(p => Math.min(totalOppPages, p + 1))} disabled={oppPage === totalOppPages} className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Next Page">
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>)}
-    </div>)}
-
-    {/* Add / Edit Record Modal */}
-    <RecordFormModal isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setEditingRecord(null); }} moduleConfig={moduleConfig} existingRecord={editingRecord} onSave={handleFormSave} allStudents={allStudents} allStudentFiles={allStudentFiles} allCompanies={allCompanies} allOpportunities={allOpportunities} allRecords={data} />
-
-    {/* File Preview Modal (student-files only) */}
-    {moduleConfig.id === 'student-files' && (<FilePreviewModal isOpen={Boolean(previewFile)} onClose={() => setPreviewFile(null)} fileRecord={previewFile} onStudentClick={onStudentClick} />)}
-
-    {/* Alternative View 1: Calendar View for 06 Sessions */}
-    {viewMode === 'calendar' && moduleConfig.id === 'sessions' && (<div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-bold text-slate-900">Training Schedule & Delivery Calendar</h3>
-        <span className="text-xs text-slate-500 font-medium">Chronological Sessions Timeline</span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredData.map(ses => (<div key={ses['Session ID']} onClick={() => onRowClick(ses)} className="p-5 rounded-2xl border border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 transition-all cursor-pointer space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded">
-              {ses['Session ID']}
-            </span>
-            <StatusBadge value={ses['Session Status']} />
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-slate-900 line-clamp-1">{ses['Session Topic']}</h4>
-            <p className="text-xs text-slate-500 mt-1">Completed Date: {ses['Planned Date'] || 'TBD'}</p>
-          </div>
-          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
-            <span>{ses['Delivery Mode'] || ses['Trainer'] || 'Scheduled'}</span>
-            <span className="font-mono font-semibold">{ses['Planned Learning Hours']} hrs</span>
-          </div>
-        </div>))}
-      </div>
-    </div>)}
-
-    {/* Alternative View 2: Pipeline Kanban View for 12 Applications */}
-    {viewMode === 'kanban' && moduleConfig.id === 'applications' && (
-      <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
-        {[
-          { stage: 'Applied', color: 'border-slate-200 bg-slate-50/80', badge: 'bg-slate-200 text-slate-700' },
-          { stage: 'Shortlisted', color: 'border-indigo-200 bg-indigo-50/40', badge: 'bg-indigo-100 text-indigo-700' },
-          { stage: 'Interview', color: 'border-purple-200 bg-purple-50/40', badge: 'bg-purple-100 text-purple-700' },
-          { stage: 'Offered', color: 'border-emerald-200 bg-emerald-50/40', badge: 'bg-emerald-100 text-emerald-700' },
-          { stage: 'On Hold', color: 'border-amber-200 bg-amber-50/40', badge: 'bg-amber-100 text-amber-700' },
-          { stage: 'Rejected', color: 'border-rose-200 bg-rose-50/40', badge: 'bg-rose-100 text-rose-700' },
-        ].map(({ stage, color, badge }) => {
-          const stageApps = filteredData.filter(a => {
-            if (stage === 'Rejected') {
-              return a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected';
-            }
-            if (stage === 'On Hold') {
-              return a['Current Stage'] === 'On Hold';
-            }
-            return a['Current Stage'] === stage && a['Current Stage'] !== 'Rejected' && a['Final Outcome'] !== 'Rejected';
-          });
-
-          return (
-            <div key={stage} className={`rounded-2xl p-4 border space-y-3 min-w-[280px] max-w-[320px] flex-shrink-0 ${color}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{stage}</span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs ${badge}`}>
-                    {stageApps.length}
-                  </span>
-                </div>
-
-                {!isReadOnly && onAddRecord && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingRecord({
-                        'Current Stage': stage,
-                        ...(stage === 'Rejected' ? { 'Final Outcome': 'Rejected' } : {}),
-                        ...(stage === 'Offered' ? { 'Final Outcome': 'Offer Extended' } : {})
-                      });
-                      setIsFormOpen(true);
-                    }}
-                    className="text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-white hover:bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs transition-colors"
-                    title={`Add candidate directly to ${stage}`}
-                  >
-                    + Add
-                  </button>
-                )}
+          {/* Pagination Controls */}
+          {totalOppPages > 1 && (<div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+              <div className="text-xs text-slate-500 font-medium">
+                Showing <span className="font-bold text-slate-900 font-mono">{(oppPage - 1) * oppPageSize + 1}</span> to{' '}
+                <span className="font-bold text-slate-900 font-mono">{Math.min(oppPage * oppPageSize, filteredData.length)}</span> of{' '}
+                <span className="font-bold text-slate-900 font-mono">{filteredData.length}</span> opportunities
               </div>
 
-              <div className="space-y-2.5 max-h-[68vh] overflow-y-auto pr-1">
-                {stageApps.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400 bg-white/60 rounded-xl border border-dashed border-slate-200">
-                    No candidates in {stage}
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setOppPage(p => Math.max(1, p - 1))} disabled={oppPage === 1} className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Previous Page">
+                  <ChevronLeft className="w-4 h-4"/>
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: Math.min(5, totalOppPages) }, (_, i) => {
+                    let pageNum = oppPage;
+                    if (totalOppPages <= 5) {
+                        pageNum = i + 1;
+                    }
+                    else if (oppPage <= 3) {
+                        pageNum = i + 1;
+                    }
+                    else if (oppPage >= totalOppPages - 2) {
+                        pageNum = totalOppPages - 4 + i;
+                    }
+                    else {
+                        pageNum = oppPage - 2 + i;
+                    }
+                    return (<button key={pageNum} onClick={() => setOppPage(pageNum)} className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${oppPage === pageNum
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:bg-slate-100'}`}>
+                        {pageNum}
+                      </button>);
+                })}
+                </div>
+
+                <button onClick={() => setOppPage(p => Math.min(totalOppPages, p + 1))} disabled={oppPage === totalOppPages} className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Next Page">
+                  <ChevronRight className="w-4 h-4"/>
+                </button>
+              </div>
+            </div>)}
+        </div>)}
+
+      {/* Add / Edit Record Modal */}
+      <RecordFormModal isOpen={isFormOpen} onClose={() => { setIsFormOpen(false); setEditingRecord(null); }} moduleConfig={moduleConfig} existingRecord={editingRecord} onSave={handleFormSave} allStudents={allStudents} allStudentFiles={allStudentFiles} allCompanies={allCompanies} allOpportunities={allOpportunities} allRecords={data}/>
+
+      {/* File Preview Modal (student-files only) */}
+      {moduleConfig.id === 'student-files' && (<FilePreviewModal isOpen={Boolean(previewFile)} onClose={() => setPreviewFile(null)} fileRecord={previewFile} onStudentClick={onStudentClick}/>)}
+
+      {/* Alternative View 1: Calendar View for 06 Sessions */}
+      {viewMode === 'calendar' && moduleConfig.id === 'sessions' && (<div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-900">Training Schedule & Delivery Calendar</h3>
+            <span className="text-xs text-slate-500 font-medium">Chronological Sessions Timeline</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredData.map(ses => (<div key={ses['Session ID']} onClick={() => onRowClick(ses)} className="p-5 rounded-2xl border border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 transition-all cursor-pointer space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded">
+                    {ses['Session ID']}
+                  </span>
+                  <StatusBadge value={ses['Session Status']}/>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 line-clamp-1">{ses['Session Topic']}</h4>
+                  <p className="text-xs text-slate-500 mt-1">Completed Date: {ses['Planned Date'] || 'TBD'}</p>
+                </div>
+                <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-600">
+                  <span>{ses['Delivery Mode'] || ses['Trainer'] || 'Scheduled'}</span>
+                  <span className="font-mono font-semibold">{ses['Planned Learning Hours']} hrs</span>
+                </div>
+              </div>))}
+          </div>
+        </div>)}
+
+      {/* Alternative View 2: Pipeline Kanban View for 12 Applications */}
+      {viewMode === 'kanban' && moduleConfig.id === 'applications' && (
+        <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+          {[
+            { stage: 'Applied', color: 'border-slate-200 bg-slate-50/80', badge: 'bg-slate-200 text-slate-700' },
+            { stage: 'Shortlisted', color: 'border-indigo-200 bg-indigo-50/40', badge: 'bg-indigo-100 text-indigo-700' },
+            { stage: 'Interview', color: 'border-purple-200 bg-purple-50/40', badge: 'bg-purple-100 text-purple-700' },
+            { stage: 'Offered', color: 'border-emerald-200 bg-emerald-50/40', badge: 'bg-emerald-100 text-emerald-700' },
+            { stage: 'On Hold', color: 'border-amber-200 bg-amber-50/40', badge: 'bg-amber-100 text-amber-700' },
+            { stage: 'Rejected', color: 'border-rose-200 bg-rose-50/40', badge: 'bg-rose-100 text-rose-700' },
+          ].map(({ stage, color, badge }) => {
+            const stageApps = filteredData.filter(a => {
+              if (stage === 'Rejected') {
+                return a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected';
+              }
+              if (stage === 'On Hold') {
+                return a['Current Stage'] === 'On Hold';
+              }
+              return a['Current Stage'] === stage && a['Current Stage'] !== 'Rejected' && a['Final Outcome'] !== 'Rejected';
+            });
+
+            return (
+              <div key={stage} className={`rounded-2xl p-4 border space-y-3 min-w-[280px] max-w-[320px] flex-shrink-0 ${color}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{stage}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs ${badge}`}>
+                      {stageApps.length}
+                    </span>
                   </div>
-                ) : (
-                  stageApps.map(app => (
-                    <div
-                      key={app['Application ID']}
-                      onClick={() => onRowClick(app)}
-                      className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-2 group"
+
+                  {!isReadOnly && onAddRecord && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRecord({
+                          'Current Stage': stage,
+                          ...(stage === 'Rejected' ? { 'Final Outcome': 'Rejected' } : {}),
+                          ...(stage === 'Offered' ? { 'Final Outcome': 'Offer Extended' } : {})
+                        });
+                        setIsFormOpen(true);
+                      }}
+                      className="text-[11px] font-semibold text-slate-600 hover:text-blue-700 bg-white hover:bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80 shadow-2xs transition-colors"
+                      title={`Add candidate directly to ${stage}`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold text-blue-600">{app['Application ID']}</span>
-                        <div className="flex items-center gap-1.5">
-                          <StatusBadge
-                            value={
-                              stage === 'Rejected'
-                                ? 'Rejected'
-                                : stage === 'On Hold'
+                      + Add
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2.5 max-h-[68vh] overflow-y-auto pr-1">
+                  {stageApps.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400 bg-white/60 rounded-xl border border-dashed border-slate-200">
+                      No candidates in {stage}
+                    </div>
+                  ) : (
+                    stageApps.map(app => (
+                      <div
+                        key={app['Application ID']}
+                        onClick={() => onRowClick(app)}
+                        className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer space-y-2 group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-xs font-bold text-blue-600">{app['Application ID']}</span>
+                          <div className="flex items-center gap-1.5">
+                            <StatusBadge
+                              value={
+                                stage === 'Rejected'
+                                  ? 'Rejected'
+                                  : stage === 'On Hold'
                                   ? 'On Hold'
                                   : app['Offer Response'] || app['Eligibility Checked']
-                            }
-                            showDot={false}
-                          />
-                          {!isReadOnly && onEditRecord && (
+                              }
+                              showDot={false}
+                            />
+                            {!isReadOnly && onEditRecord && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditRow(app);
+                                }}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                title="Edit this application"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStudentClick(app['Student ID']);
+                          }}
+                          className="text-xs font-bold text-slate-900 group-hover:text-blue-600 block text-left transition-colors"
+                        >
+                          {app['Student Name'] || app['Student ID']}
+                        </button>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="font-semibold text-slate-700">{app['Company Name'] || app['Opportunity ID']}</span>
+                          <span className="font-mono text-[10px] text-slate-400">{app['Student ID']}</span>
+                        </div>
+
+                        {/* Offered CTC display */}
+                        {app['Offered CTC'] > 0 && stage !== 'Rejected' && (
+                          <div className="text-xs font-mono font-bold text-emerald-700 pt-1 border-t border-slate-100 flex items-center justify-between">
+                            <span>Offered CTC:</span>
+                            <span>{formatINR(app['Offered CTC'])}</span>
+                          </div>
+                        )}
+
+                        {/* Rejected reason indicator */}
+                        {stage === 'Rejected' && (
+                          <div className="text-[11px] text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-100 space-y-0.5">
+                            <span className="font-semibold text-[10px] uppercase tracking-wider block text-rose-500">Rejection Reason:</span>
+                            <span>{app['Rejection/Withdrawal Reason'] || 'Not Selected in Technical/HR round'}</span>
+                          </div>
+                        )}
+
+                        {/* On Hold reason indicator */}
+                        {stage === 'On Hold' && (
+                          <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200/80 space-y-0.5">
+                            <span className="font-semibold text-[10px] uppercase tracking-wider block text-amber-600">On Hold Status:</span>
+                            <span>{app['Rejection/Withdrawal Reason'] || app['Next Action'] || 'To be discussed internally'}</span>
+                          </div>
+                        )}
+
+                        {/* Next Action note if present */}
+                        {app['Next Action'] && stage !== 'Rejected' && stage !== 'On Hold' && (
+                          <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 truncate">
+                            <span className="font-medium text-slate-700">Next: </span>
+                            {app['Next Action']}
+                          </div>
+                        )}
+
+                        {/* Edit Action Bar */}
+                        {!isReadOnly && onEditRecord && (
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleEditRow(app);
                               }}
-                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                              title="Edit this application"
+                              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/80 px-2.5 py-1 rounded-lg border border-blue-200/60 transition-colors shadow-2xs"
+                              title="Edit Application Stage, Details & Status"
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
+                              <Edit3 className="w-3 h-3" />
+                              <span>Edit</span>
                             </button>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStudentClick(app['Student ID']);
-                        }}
-                        className="text-xs font-bold text-slate-900 group-hover:text-blue-600 block text-left transition-colors"
-                      >
-                        {app['Student Name'] || app['Student ID']}
-                      </button>
-
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span className="font-semibold text-slate-700">{app['Company Name'] || app['Opportunity ID']}</span>
-                        <span className="font-mono text-[10px] text-slate-400">{app['Student ID']}</span>
-                      </div>
-
-                      {/* Offered CTC display */}
-                      {app['Offered CTC'] > 0 && stage !== 'Rejected' && (
-                        <div className="text-xs font-mono font-bold text-emerald-700 pt-1 border-t border-slate-100 flex items-center justify-between">
-                          <span>Offered CTC:</span>
-                          <span>{formatINR(app['Offered CTC'])}</span>
-                        </div>
-                      )}
-
-                      {/* Rejected reason indicator */}
-                      {stage === 'Rejected' && (
-                        <div className="text-[11px] text-rose-700 bg-rose-50 p-2 rounded-lg border border-rose-100 space-y-0.5">
-                          <span className="font-semibold text-[10px] uppercase tracking-wider block text-rose-500">Rejection Reason:</span>
-                          <span>{app['Rejection/Withdrawal Reason'] || 'Not Selected in Technical/HR round'}</span>
-                        </div>
-                      )}
-
-                      {/* On Hold reason indicator */}
-                      {stage === 'On Hold' && (
-                        <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200/80 space-y-0.5">
-                          <span className="font-semibold text-[10px] uppercase tracking-wider block text-amber-600">On Hold Status:</span>
-                          <span>{app['Rejection/Withdrawal Reason'] || app['Next Action'] || 'To be discussed internally'}</span>
-                        </div>
-                      )}
-
-                      {/* Next Action note if present */}
-                      {app['Next Action'] && stage !== 'Rejected' && stage !== 'On Hold' && (
-                        <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-100 truncate">
-                          <span className="font-medium text-slate-700">Next: </span>
-                          {app['Next Action']}
-                        </div>
-                      )}
-
-                      {/* Edit Action Bar */}
-                      {!isReadOnly && onEditRecord && (
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditRow(app);
-                            }}
-                            className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50/70 hover:bg-blue-100/80 px-2.5 py-1 rounded-lg border border-blue-200/60 transition-colors shadow-2xs"
-                            title="Edit Application Stage, Details & Status"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                            <span>Edit</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    )}
+            );
+          })}
+        </div>
+      )}
 
-    {/* Alternative View 3: Chronological Timeline View for 13 Application History */}
-    {viewMode === 'timeline' && moduleConfig.id === 'application-history' && (<div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">
-      <h3 className="text-base font-bold text-slate-900">Application Event Journey & Interview Timeline</h3>
-      <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-        {filteredData.map(evt => (<div key={evt['Event ID']} onClick={() => onRowClick(evt)} className="relative bg-slate-50 hover:bg-blue-50/40 p-4 rounded-xl border border-slate-200 transition-colors cursor-pointer space-y-1.5">
-          <span className="absolute -left-6 top-4 w-3.5 h-3.5 rounded-full bg-blue-600 ring-4 ring-white" />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold text-slate-600">{evt['Event ID']}</span>
-              <span className="text-xs font-bold text-slate-900">{evt['Interview Round']}</span>
-            </div>
-            <span className="text-xs font-mono text-slate-500">{evt['Event Date']}</span>
+      {/* Alternative View 3: Chronological Timeline View for 13 Application History */}
+      {viewMode === 'timeline' && moduleConfig.id === 'application-history' && (<div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-6">
+          <h3 className="text-base font-bold text-slate-900">Application Event Journey & Interview Timeline</h3>
+          <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+            {filteredData.map(evt => (<div key={evt['Event ID']} onClick={() => onRowClick(evt)} className="relative bg-slate-50 hover:bg-blue-50/40 p-4 rounded-xl border border-slate-200 transition-colors cursor-pointer space-y-1.5">
+                <span className="absolute -left-6 top-4 w-3.5 h-3.5 rounded-full bg-blue-600 ring-4 ring-white"/>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-600">{evt['Event ID']}</span>
+                    <span className="text-xs font-bold text-slate-900">{evt['Interview Round']}</span>
+                  </div>
+                  <span className="text-xs font-mono text-slate-500">{evt['Event Date']}</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-500">Application: {evt['Application ID']}</span>
+                  <span>•</span>
+                  <StatusBadge value={evt['New Stage']}/>
+                  <span>•</span>
+                  <span className="text-slate-600 font-medium">Result: {evt['Result']}</span>
+                </div>
+                {evt['Feedback'] && (<p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100">
+                    {evt['Feedback']}
+                  </p>)}
+              </div>))}
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-500">Application: {evt['Application ID']}</span>
-            <span>•</span>
-            <StatusBadge value={evt['New Stage']} />
-            <span>•</span>
-            <span className="text-slate-600 font-medium">Result: {evt['Result']}</span>
-          </div>
-          {evt['Feedback'] && (<p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100">
-            {evt['Feedback']}
-          </p>)}
-        </div>))}
-      </div>
-    </div>)}
+        </div>)}
 
-    {/* Toast Notification */}
-    {toastMessage && (<div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700/80 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2">
-      <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-      <span>{toastMessage}</span>
-    </div>)}
-  </div>);
+      {/* Toast Notification */}
+      {toastMessage && (<div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700/80 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"/>
+          <span>{toastMessage}</span>
+        </div>)}
+    </div>);
 };
