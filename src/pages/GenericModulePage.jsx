@@ -600,7 +600,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 </div>
                 <div 
                   onClick={(e) => { e.stopPropagation(); setQuickCategoryFilter(prev => prev === 'WITHDRAWN' ? null : 'WITHDRAWN'); }}
-                  className={`col-span-2 flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'WITHDRAWN' ? 'bg-amber-100 font-bold ring-1 ring-amber-400' : 'hover:bg-amber-50/70'}`}
+                  className={`flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'WITHDRAWN' ? 'bg-amber-100 font-bold ring-1 ring-amber-400' : 'hover:bg-amber-50/70'}`}
                   title={`Filter by Withdrawn (${withdrawnCount})`}
                 >
                   <span className="text-amber-700 font-medium flex items-center gap-1.5">
