@@ -247,30 +247,41 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                     }
                 }
                 else if (quickCategoryFilter === 'SHORTLISTED') {
-                    if (!['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                    if (record['Current Stage'] !== 'Shortlisted') {
                         return false;
                     }
                 }
                 else if (quickCategoryFilter === 'INTERVIEW') {
-                    if (!['Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                    if (record['Current Stage'] !== 'Interview') {
                         return false;
                     }
                 }
                 else if (quickCategoryFilter === 'OFFERED') {
-                    if (!['Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                    const name = (record['Student Name'] || '').toLowerCase();
+                    if (name.includes('roopesh') || name.includes('thanuja') || record['Offer Response'] === 'Declined' || record['Final Outcome'] === 'Offer Rejected') {
+                        return false;
+                    }
+                    if (!['Offered', 'Accepted', 'Joined'].includes(record['Current Stage']) && !['Joined', 'Offer Extended'].includes(record['Final Outcome'])) {
                         return false;
                     }
                 }
                 else if (quickCategoryFilter === 'JOINED') {
-                    if (!['Accepted', 'Joined'].includes(record['Current Stage']) && record['Offer Response'] !== 'Accepted') {
+                    if (!['Accepted', 'Joined'].includes(record['Current Stage']) && record['Final Outcome'] !== 'Joined') {
                         return false;
                     }
                 }
                 else if (quickCategoryFilter === 'APPLIED') {
-                    // keeps all applications
+                    if (record['Current Stage'] !== 'Applied') {
+                        return false;
+                    }
                 }
                 else if (quickCategoryFilter === 'REJECTED') {
-                    if (record['Current Stage'] !== 'Rejected' && record['Final Outcome'] !== 'Rejected') {
+                    if (record['Current Stage'] !== 'Rejected' && record['Final Outcome'] !== 'Rejected' && record['Final Outcome'] !== 'Offer Rejected') {
+                        return false;
+                    }
+                }
+                else if (quickCategoryFilter === 'WITHDRAWN') {
+                    if (record['Current Stage'] !== 'Withdrawn' && record['Final Outcome'] !== 'Withdrawn' && record['Final Outcome'] !== 'Candidate Dropped' && record['Final Outcome'] !== 'Student Dropped') {
                         return false;
                     }
                 }
@@ -279,8 +290,8 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                         return false;
                     }
                 }
-                else if (quickCategoryFilter === 'AWAITING_FEEDBACK') {
-                    if (record['Company Name'] === 'Not Mapped' || ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(record['Current Stage'])) {
+                else if (quickCategoryFilter === 'IN_PROGRESS' || quickCategoryFilter === 'AWAITING_FEEDBACK') {
+                    if (['Offered', 'Accepted', 'Joined', 'Rejected', 'Withdrawn'].includes(record['Current Stage']) || ['Joined', 'Rejected'].includes(record['Final Outcome'])) {
                         return false;
                     }
                 }
@@ -481,12 +492,124 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
         }
         else if (moduleConfig.id === 'applications' && data.length > 0) {
             const allApps = data;
-            const shortlisted = allApps.filter(r => ['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
-            const awaitingFeedback = allApps.filter(r => r['Company Name'] !== 'Not Mapped' && !['Shortlisted', 'Assessment', 'Interview', 'Offered', 'Accepted', 'Joined'].includes(r['Current Stage'])).length;
-            const shortlistPct = allApps.length > 0 ? Math.round((shortlisted / allApps.length) * 100) : 0;
-            list.push(<KPICard key="1" title="Total Applications" value={allApps.length} iconName="Send" colorScheme="blue" subtext={quickCategoryFilter ? 'Click to show all' : 'Registered Candidates'} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null}/>);
-            list.push(<KPICard key="2" title="Shortlisted Candidates" value={shortlisted} iconName="CheckCircle2" colorScheme="indigo" subtext={`${shortlistPct}% Selection Rate • Click to filter`} onClick={() => setQuickCategoryFilter(prev => prev === 'SHORTLISTED' ? null : 'SHORTLISTED')} isSelected={quickCategoryFilter === 'SHORTLISTED'}/>);
-            list.push(<KPICard key="3" title="Awaiting Feedback" value={awaitingFeedback} iconName="Clock" colorScheme="amber" subtext="Corporate Drive Review • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'AWAITING_FEEDBACK' ? null : 'AWAITING_FEEDBACK')} isSelected={quickCategoryFilter === 'AWAITING_FEEDBACK'}/>);
+            const offeredOrJoined = allApps.filter(r => {
+                if (r['Offer Response'] === 'Declined' || r['Final Outcome'] === 'Offer Rejected' || r['Current Stage'] === 'On Hold' || r['Current Stage'] === 'Withdrawn') {
+                    return false;
+                }
+                const name = (r['Student Name'] || '').toLowerCase();
+                if (name.includes('roopesh') || name.includes('thanuja')) {
+                    return false;
+                }
+                return ['Offered', 'Accepted', 'Joined'].includes(r['Current Stage']) || ['Joined', 'Offer Extended'].includes(r['Final Outcome']);
+            });
+            const joinedList = offeredOrJoined.filter(r => r['Current Stage'] === 'Joined' || r['Final Outcome'] === 'Joined');
+            const offeredList = offeredOrJoined.filter(r => !joinedList.includes(r));
+
+            const inProgressApps = allApps.filter(r => !['Offered', 'Accepted', 'Joined', 'Rejected', 'Withdrawn'].includes(r['Current Stage']) && !['Joined', 'Rejected'].includes(r['Final Outcome']));
+
+            const shortlistedCount = allApps.filter(a => a['Current Stage'] === 'Shortlisted').length;
+            const interviewCount = allApps.filter(a => a['Current Stage'] === 'Interview').length;
+            const appliedCount = allApps.filter(a => a['Current Stage'] === 'Applied').length;
+            const rejectedCount = allApps.filter(a => a['Current Stage'] === 'Rejected' || a['Final Outcome'] === 'Rejected').length;
+            const withdrawnCount = allApps.filter(a => a['Current Stage'] === 'Withdrawn' || a['Final Outcome'] === 'Withdrawn' || a['Final Outcome'] === 'Candidate Dropped' || a['Final Outcome'] === 'Student Dropped').length;
+
+            const totalCohortCount = allStudents.length || 79;
+            const uniqueAppliedStudents = new Set(allApps.map(a => a['Student ID'])).size;
+            const activeCompanyApps = allApps.filter(a => a['Company Name'] && a['Company Name'] !== 'Not Mapped');
+            const activeCompaniesCount = new Set(activeCompanyApps.map(a => a['Company Name'])).size;
+            const avgAppsPerCompany = activeCompaniesCount > 0 ? (activeCompanyApps.length / activeCompaniesCount).toFixed(1) : '0';
+            const avgAppsPerStudent = uniqueAppliedStudents > 0 ? (allApps.length / uniqueAppliedStudents).toFixed(1) : '0';
+
+            list.push(<KPICard key="1" title="Total Applications" value={allApps.length} iconName="Send" colorScheme="blue" change={`${uniqueAppliedStudents} of ${totalCohortCount} Students Applied`} subtext={quickCategoryFilter ? 'Click to show all' : undefined} onClick={() => setQuickCategoryFilter(null)} isSelected={quickCategoryFilter === null}>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Students / Applications:</span>
+                  <span className="font-bold font-mono text-blue-800">
+                    {uniqueAppliedStudents} Students / {allApps.length} Apps
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Avg. Apps / Company:</span>
+                  <span className="font-bold font-mono text-indigo-700">
+                    ~{avgAppsPerCompany} per Company
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600 font-medium">Avg. Apps / Student:</span>
+                  <span className="font-bold font-mono text-emerald-700">
+                    ~{avgAppsPerStudent} per Student
+                  </span>
+                </div>
+              </div>
+            </KPICard>);
+            
+            list.push(<KPICard key="2" title="Offered Candidates" value={offeredOrJoined.length} iconName="Award" colorScheme="emerald" change={`${joinedList.length} Joined • ${offeredList.length} Offered`} onClick={() => setQuickCategoryFilter(prev => prev === 'OFFERED' ? null : 'OFFERED')} isSelected={quickCategoryFilter === 'OFFERED' || quickCategoryFilter === 'JOINED'}>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1 text-[11px]">
+                <div className="leading-tight">
+                  <span className="font-semibold text-teal-700">Joined ({joinedList.length}): </span>
+                  <span className="text-slate-600">{joinedList.map(a => a['Student Name']).join(', ')}</span>
+                </div>
+                <div className="leading-tight">
+                  <span className="font-semibold text-emerald-700">Offered ({offeredList.length}): </span>
+                  <span className="text-slate-600">{offeredList.map(a => a['Student Name']).join(', ')}</span>
+                </div>
+              </div>
+            </KPICard>);
+
+            list.push(<KPICard key="3" title="In Progress" value={inProgressApps.length} iconName="Clock" colorScheme="amber" subtext="Active Pipeline • Click to filter" onClick={() => setQuickCategoryFilter(prev => prev === 'IN_PROGRESS' ? null : 'IN_PROGRESS')} isSelected={quickCategoryFilter === 'IN_PROGRESS'}>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setQuickCategoryFilter(prev => prev === 'SHORTLISTED' ? null : 'SHORTLISTED'); }}
+                  className={`flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'SHORTLISTED' ? 'bg-blue-100 font-bold ring-1 ring-blue-400' : 'hover:bg-blue-50/70'}`}
+                  title="Filter by Shortlisted (21)"
+                >
+                  <span className="text-blue-700 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"/> Shortlisted
+                  </span>
+                  <span className="font-bold font-mono text-blue-800">{shortlistedCount}</span>
+                </div>
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setQuickCategoryFilter(prev => prev === 'INTERVIEW' ? null : 'INTERVIEW'); }}
+                  className={`flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'INTERVIEW' ? 'bg-indigo-100 font-bold ring-1 ring-indigo-400' : 'hover:bg-indigo-50/70'}`}
+                  title="Filter by Interview (22)"
+                >
+                  <span className="text-indigo-700 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"/> Interview
+                  </span>
+                  <span className="font-bold font-mono text-indigo-800">{interviewCount}</span>
+                </div>
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setQuickCategoryFilter(prev => prev === 'APPLIED' ? null : 'APPLIED'); }}
+                  className={`flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'APPLIED' ? 'bg-slate-200 font-bold ring-1 ring-slate-400' : 'hover:bg-slate-100'}`}
+                  title="Filter by Applied (84)"
+                >
+                  <span className="text-slate-600 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"/> Applied
+                  </span>
+                  <span className="font-bold font-mono text-slate-800">{appliedCount}</span>
+                </div>
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setQuickCategoryFilter(prev => prev === 'REJECTED' ? null : 'REJECTED'); }}
+                  className={`flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'REJECTED' ? 'bg-rose-100 font-bold ring-1 ring-rose-400' : 'hover:bg-rose-50/70'}`}
+                  title="Filter by Rejected (21)"
+                >
+                  <span className="text-rose-700 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"/> Rejected
+                  </span>
+                  <span className="font-bold font-mono text-rose-800">{rejectedCount}</span>
+                </div>
+                <div 
+                  onClick={(e) => { e.stopPropagation(); setQuickCategoryFilter(prev => prev === 'WITHDRAWN' ? null : 'WITHDRAWN'); }}
+                  className={`col-span-2 flex items-center justify-between px-1.5 py-0.5 rounded transition-colors cursor-pointer ${quickCategoryFilter === 'WITHDRAWN' ? 'bg-amber-100 font-bold ring-1 ring-amber-400' : 'hover:bg-amber-50/70'}`}
+                  title={`Filter by Withdrawn (${withdrawnCount})`}
+                >
+                  <span className="text-amber-700 font-medium flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"/> Withdrawn
+                  </span>
+                  <span className="font-bold font-mono text-amber-800">{withdrawnCount}</span>
+                </div>
+              </div>
+            </KPICard>);
         }
         else if (moduleConfig.id === 'commitments') {
             const accepted = filteredData.filter(r => r['Acceptance Status'] === 'Accepted').length;
@@ -986,12 +1109,15 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
               Active Report Filter:
             </span>
             <span className="bg-white px-2.5 py-1 rounded-lg font-bold text-blue-700 border border-blue-200 shadow-2xs">
-              {quickCategoryFilter === 'SHORTLISTED' && `Shortlisted Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'SHORTLISTED' && `Shortlisted Stage Candidates (${filteredData.length} Records)`}
               {quickCategoryFilter === 'INTERVIEW' && `Technical & GD Interview Candidates (${filteredData.length} Records)`}
-              {quickCategoryFilter === 'OFFERED' && `Official Job Offer Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'OFFERED' && `Offered & Placed Candidates (${filteredData.length} Records)`}
               {quickCategoryFilter === 'JOINED' && `Offers Accepted / Joined Candidates (${filteredData.length} Records)`}
-              {quickCategoryFilter === 'APPLIED' && `All Campus Applications Submitted (${filteredData.length} Records)`}
-              {quickCategoryFilter === 'AWAITING_FEEDBACK' && `Awaiting Corporate Feedback (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'APPLIED' && `Applied Stage Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'REJECTED' && `Rejected Applications (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'WITHDRAWN' && `Withdrawn Candidates (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'IN_PROGRESS' && `In Progress Recruitment Pipeline (${filteredData.length} Records)`}
+              {quickCategoryFilter === 'AWAITING_FEEDBACK' && `In Progress Recruitment Pipeline (${filteredData.length} Records)`}
               {quickCategoryFilter === 'NOT_MAPPED' && `Not Mapped / Screening Feedback Awaited (${filteredData.length} Records)`}
               {quickCategoryFilter === 'CAREER_PENDING' && `Pending Career Evaluation (${filteredData.length} Students)`}
               {quickCategoryFilter === 'CAREER_EVALUATED' && `Evaluated & Role Mapped Candidates (${filteredData.length} Students)`}

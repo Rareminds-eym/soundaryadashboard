@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as LucideIcons from 'lucide-react';
-export const KPICard = ({ title, value, iconName, change, isPositive = true, subtext, colorScheme = 'blue', delay = 0, onClick, isSelected = false, }) => {
+export const KPICard = ({ title, value, iconName, change, isPositive = true, subtext, colorScheme = 'blue', delay = 0, onClick, isSelected = false, children, }) => {
     // Dynamically resolve icon from Lucide
     const IconComponent = LucideIcons[iconName] || LucideIcons.Activity;
     const colorStyles = {
@@ -57,9 +57,10 @@ export const KPICard = ({ title, value, iconName, change, isPositive = true, sub
           {change && (<span className={`inline-flex items-center text-xs font-semibold px-1.5 py-0.5 rounded shrink-0 ${isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
               {isPositive ? '↑' : '↓'} {change}
             </span>)}
-          {subtext && (<span className="text-xs text-slate-500 leading-tight" title={subtext}>
+          {subtext && (<span className="text-xs text-slate-500 leading-tight" title={typeof subtext === 'string' ? subtext : undefined}>
               {subtext}
             </span>)}
         </div>)}
+      {children}
     </motion.div>);
 };
