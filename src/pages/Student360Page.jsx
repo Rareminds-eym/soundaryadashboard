@@ -517,7 +517,7 @@ export const Student360Page = ({ studentId, db, onBack, onNavigateModule, allStu
                         <span className="font-mono text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
                           {app['Application ID']}
                         </span>
-                        <span className="text-xs font-bold text-slate-900">{opp?.['Role Title']}</span>
+                        <span className="text-xs font-bold text-slate-900">{app['Role Title'] || opp?.['Role Title']}</span>
                       </div>
                       <div className="text-xs text-slate-500">
                         Company: <strong>{comp?.['Company Name']}</strong> • Applied On: {app['Applied On']}
