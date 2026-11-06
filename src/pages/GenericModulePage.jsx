@@ -302,7 +302,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 }
                 else if (quickCategoryFilter.startsWith('COMPANY:')) {
                     const compName = quickCategoryFilter.replace('COMPANY:', '');
-                    if (record['Company Name'] !== compName) {
+                    if (record['Company Name'] !== compName && !(compName === 'Plastics for Change' && record['Company Name'] === 'PFC') && !(compName === 'PFC' && record['Company Name'] === 'Plastics for Change')) {
                         return false;
                     }
                 }
@@ -775,7 +775,7 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {[
                 { company: 'Rareminds', role: 'Talent Solutions & BD', bg: 'bg-purple-50/70', border: 'border-purple-100', text: 'text-purple-900', num: 'text-purple-700', sub: 'text-purple-600/90' },
-                { company: 'PFC', role: 'Finance Executive & Analyst', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
+                { company: 'Plastics for Change', role: 'Operations & HR Solutions', bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-900', num: 'text-emerald-700', sub: 'text-emerald-600/90' },
                 { company: 'Radiall', role: 'HR & Finance Ops', bg: 'bg-indigo-50/70', border: 'border-indigo-100', text: 'text-indigo-900', num: 'text-indigo-700', sub: 'text-indigo-600/90' },
                 { company: 'Dell', role: 'Inside Sales & Ops', bg: 'bg-blue-50/70', border: 'border-blue-100', text: 'text-blue-900', num: 'text-blue-700', sub: 'text-blue-600/90' },
                 { company: 'Jp Morgan', role: 'Financial Ops & Analytics', bg: 'bg-amber-50/70', border: 'border-amber-100', text: 'text-amber-900', num: 'text-amber-700', sub: 'text-amber-600/90' },
@@ -791,8 +791,8 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 { company: 'Brickwork India', role: 'Research & HR Ops', bg: 'bg-violet-50/70', border: 'border-violet-100', text: 'text-violet-900', num: 'text-violet-700', sub: 'text-violet-600/90' },
                 { company: 'Legion Energy', role: 'Energy Operations Executive', bg: 'bg-lime-50/70', border: 'border-lime-100', text: 'text-lime-900', num: 'text-lime-700', sub: 'text-lime-600/90' },
             ].map(item => {
-                const isSelected = quickCategoryFilter === `COMPANY:${item.company}`;
-                const compApps = data.filter(a => a['Company Name'] === item.company);
+                const isSelected = quickCategoryFilter === `COMPANY:${item.company}` || (item.company === 'Plastics for Change' && quickCategoryFilter === 'COMPANY:PFC');
+                const compApps = data.filter(a => a['Company Name'] === item.company || (item.company === 'Plastics for Change' && a['Company Name'] === 'PFC'));
                 const totalApplied = compApps.length;
                 const joinedCount = compApps.filter(a => a['Current Stage'] === 'Joined' || a['Final Outcome'] === 'Joined').length;
                 const offeredCount = compApps.filter(a => ['Offered', 'Accepted'].includes(a['Current Stage']) && a['Current Stage'] !== 'Joined').length;
