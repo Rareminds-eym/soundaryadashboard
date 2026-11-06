@@ -367,12 +367,12 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 return bScore - aScore;
             });
         }
-        // Applications (Student List): Order by recruitment pipeline: Joined -> Offered -> Shortlisted -> Interview -> Applied -> Rejected
+        // Applications (Student List): Order by recruitment pipeline: Highest package first (Joined & Offered) -> Shortlisted -> Interview -> Applied -> Rejected
         if (moduleConfig.id === 'applications') {
             const stagePriority = {
                 'joined': 1,
-                'offered': 2,
-                'accepted': 2,
+                'offered': 1,
+                'accepted': 1,
                 'shortlisted': 3,
                 'interview': 4,
                 'applied': 5,
@@ -381,13 +381,27 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 'rejected': 7,
                 'withdrawn': 7
             };
+            const getStagePriority = (rec) => {
+                if (rec['Offer Response'] === 'Declined' || rec['Final Outcome'] === 'Offer Rejected') {
+                    return 7;
+                }
+                const stage = String(rec['Current Stage'] || '').trim().toLowerCase();
+                return stagePriority[stage] ?? 99;
+            };
             result = [...result].sort((a, b) => {
-                const stageA = String(a['Current Stage'] || '').trim().toLowerCase();
-                const stageB = String(b['Current Stage'] || '').trim().toLowerCase();
-                const pA = stagePriority[stageA] ?? 6;
-                const pB = stagePriority[stageB] ?? 6;
+                const pA = getStagePriority(a);
+                const pB = getStagePriority(b);
                 if (pA !== pB) return pA - pB;
-                return String(a['Application ID'] || '').localeCompare(String(b['Application ID'] || ''));
+                // Highest package first
+                const ctcA = Number(a['Offered CTC'] || a['Offered Fixed Pay'] || 0);
+                const ctcB = Number(b['Offered CTC'] || b['Offered Fixed Pay'] || 0);
+                if (ctcA !== ctcB) return ctcB - ctcA;
+                // If package is equal, Joined comes before Offered
+                const subPriority = { 'joined': 1, 'accepted': 2, 'offered': 3 };
+                const subA = subPriority[String(a['Current Stage']).trim().toLowerCase()] ?? 99;
+                const subB = subPriority[String(b['Current Stage']).trim().toLowerCase()] ?? 99;
+                if (subA !== subB) return subA - subB;
+                return String(a['Student Name'] || a['Application ID'] || '').localeCompare(String(b['Student Name'] || b['Application ID'] || ''));
             });
         }
         return result;
@@ -502,8 +516,14 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                 }
                 return ['Offered', 'Accepted', 'Joined'].includes(r['Current Stage']) || ['Joined', 'Offer Extended'].includes(r['Final Outcome']);
             });
-            const joinedList = offeredOrJoined.filter(r => r['Current Stage'] === 'Joined' || r['Final Outcome'] === 'Joined');
-            const offeredList = offeredOrJoined.filter(r => !joinedList.includes(r));
+            const sortByCTCDesc = (list) => [...list].sort((a, b) => {
+                const ctcA = Number(a['Offered CTC'] || 0);
+                const ctcB = Number(b['Offered CTC'] || 0);
+                if (ctcA !== ctcB) return ctcB - ctcA;
+                return String(a['Student Name'] || '').localeCompare(String(b['Student Name'] || ''));
+            });
+            const joinedList = sortByCTCDesc(offeredOrJoined.filter(r => r['Current Stage'] === 'Joined' || r['Final Outcome'] === 'Joined'));
+            const offeredList = sortByCTCDesc(offeredOrJoined.filter(r => !joinedList.includes(r)));
 
             const inProgressApps = allApps.filter(r => !['Offered', 'Accepted', 'Joined', 'Rejected', 'Withdrawn'].includes(r['Current Stage']) && !['Joined', 'Rejected'].includes(r['Final Outcome']));
 
@@ -1420,6 +1440,17 @@ export const GenericModulePage = ({ moduleConfig, data, allStudents = [], allStu
                           <span className="font-semibold text-slate-700">{app['Company Name'] || app['Opportunity ID']}</span>
                           <span className="font-mono text-[10px] text-slate-400">{app['Student ID']}</span>
                         </div>
+
+                        {/* Role Title badge */}
+                        {(() => {
+                          const opp = allOpportunities?.find(o => o['Opportunity ID'] === app['Opportunity ID']);
+                          const role = app['Role Title'] || opp?.['Role Title'] || opp?.['Role'];
+                          return role ? (
+                            <div className="text-[11px] font-semibold text-indigo-700 bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-100/70 inline-block truncate max-w-full">
+                              {role}
+                            </div>
+                          ) : null;
+                        })()}
 
                         {/* Offered CTC display */}
                         {app['Offered CTC'] > 0 && stage !== 'Rejected' && (

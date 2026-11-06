@@ -31,7 +31,7 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, defaultSo
         }
         else {
             setSortKey(key);
-            setSortDirection('asc');
+            setSortDirection(key.toLowerCase().includes('ctc') || key.toLowerCase().includes('score') || key.toLowerCase().includes('pay') ? 'desc' : 'asc');
         }
     };
     // Sorted Data
@@ -50,8 +50,8 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, defaultSo
             if (sortKey === 'Current Stage') {
                 const stagePriority = {
                     'joined': 1,
-                    'offered': 2,
-                    'accepted': 2,
+                    'offered': 1,
+                    'accepted': 1,
                     'shortlisted': 3,
                     'interview': 4,
                     'applied': 5,
@@ -60,12 +60,32 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, defaultSo
                     'rejected': 7,
                     'withdrawn': 7
                 };
-                const pA = stagePriority[String(valA).trim().toLowerCase()] ?? 99;
-                const pB = stagePriority[String(valB).trim().toLowerCase()] ?? 99;
+                const getPriority = (rec) => {
+                    if (rec['Offer Response'] === 'Declined' || rec['Final Outcome'] === 'Offer Rejected') {
+                        return 7;
+                    }
+                    const stage = String(rec['Current Stage'] || '').trim().toLowerCase();
+                    return stagePriority[stage] ?? 99;
+                };
+                const pA = getPriority(a);
+                const pB = getPriority(b);
                 if (pA !== pB) {
                     return sortDirection === 'asc' ? pA - pB : pB - pA;
                 }
-                return String(a[primaryKey] || '').localeCompare(String(b[primaryKey] || ''));
+                // Highest package first
+                const ctcA = Number(a['Offered CTC'] || a['Offered Fixed Pay'] || 0);
+                const ctcB = Number(b['Offered CTC'] || b['Offered Fixed Pay'] || 0);
+                if (ctcA !== ctcB) {
+                    return sortDirection === 'asc' ? ctcB - ctcA : ctcA - ctcB;
+                }
+                // If package is equal, Joined comes before Offered
+                const subPriority = { 'joined': 1, 'accepted': 2, 'offered': 3 };
+                const subA = subPriority[String(valA).trim().toLowerCase()] ?? 99;
+                const subB = subPriority[String(valB).trim().toLowerCase()] ?? 99;
+                if (subA !== subB) {
+                    return sortDirection === 'asc' ? subA - subB : subB - subA;
+                }
+                return String(a['Student Name'] || a[primaryKey] || '').localeCompare(String(b['Student Name'] || b[primaryKey] || ''));
             }
 
             if (typeof valA === 'number' && typeof valB === 'number') {
@@ -125,9 +145,13 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, defaultSo
         // Opportunity ID Link -> Displays Company Name and links to opportunity
         if (col.key === 'Opportunity ID') {
             let compName = String(record['Company Name'] || record['Company'] || '');
-            if (!compName && allOpportunities) {
+            let roleTitle = String(record['Role Title'] || record['Role'] || '');
+            if ((!compName || !roleTitle) && allOpportunities) {
                 const opp = allOpportunities.find(o => o['Opportunity ID'] === rawVal);
-                if (opp) compName = opp['Company Name'] || '';
+                if (opp) {
+                    if (!compName) compName = opp['Company Name'] || '';
+                    if (!roleTitle) roleTitle = opp['Role Title'] || opp['Role'] || '';
+                }
             }
             if (compName.toLowerCase() === 'radall')
                 compName = 'Radiall';
@@ -136,13 +160,16 @@ export const DataTable = ({ columns, visibleColumns, data, primaryKey, defaultSo
           {compName && (<span className="text-xs font-bold text-slate-900 leading-tight">
               {compName}
             </span>)}
+          {roleTitle && (<span className="text-[11px] font-medium text-slate-600 leading-tight mt-0.5">
+              {roleTitle}
+            </span>)}
           {onRelatedClick ? (<button onClick={(e) => {
                         e.stopPropagation();
                         onRelatedClick('opportunities', displayOppId);
-                    }} className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline mt-0.5 group/opp cursor-pointer" title={`View Opportunity Details (${displayOppId})`}>
+                    }} className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline mt-0.5 group/opp cursor-pointer" title={`View Opportunity Details (${displayOppId})`}>
               <span>{displayOppId}</span>
               <ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover/opp:opacity-100"/>
-            </button>) : (<span className="font-mono text-[11px] text-slate-500 mt-0.5">{displayOppId}</span>)}
+            </button>) : (<span className="font-mono text-[10px] text-slate-500 mt-0.5">{displayOppId}</span>)}
         </div>);
         }
         // Foreign Key Link -> Opens related module
