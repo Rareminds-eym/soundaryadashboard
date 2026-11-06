@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.11.05_app0063_rej_v71';
+const SCHEMA_VERSION = 'v2026.11.06_jmr_tech_v72';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v71';
+const STORAGE_KEY = 'rareminds_portal_real_db_v72';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -228,6 +228,11 @@ export function sanitizeDatabase(database) {
                 updated['Final Outcome'] = 'Rejected';
                 updated['Next Action'] = 'Closed';
                 updated['Rejection/Withdrawal Reason'] = 'Did not clear interview round';
+            }
+            if (['APP-0243', 'APP-0245', 'APP-0247', 'APP-0249', 'APP-0251', 'APP-0253', 'APP-0255', 'APP-0257', 'APP-0259', 'APP-0261', 'APP-0263'].includes(updated['Application ID'])) {
+                updated['Company Name'] = 'JMR Tech';
+                updated['Opportunity ID'] = 'EXP-MCA-JMR';
+                updated['Specialization'] = 'MCA';
             }
             return updated;
         });
