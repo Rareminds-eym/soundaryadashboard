@@ -9,9 +9,9 @@ import { assertPermission, AuthForbiddenError } from '@/services/authService';
 import { syncRecordCreationToGoogleSheet, syncRecordUpdateToGoogleSheet, syncRecordDeletionToGoogleSheet, syncBulkImportToGoogleSheet, } from '@/services/googleSheetsService';
 export { AuthForbiddenError };
 // ─── Storage Keys & Schema Version ──────────────────────────────────────────
-const SCHEMA_VERSION = 'v2026.11.06_jmr_tech_v72';
+const SCHEMA_VERSION = 'v2026.11.23_genpact_wipro_fsc_v73';
 const VERSION_STORAGE_KEY = 'rareminds_portal_schema_version';
-const STORAGE_KEY = 'rareminds_portal_real_db_v72';
+const STORAGE_KEY = 'rareminds_portal_real_db_v73';
 // ─── Stream Normalizer Helper ───────────────────────────────────────────────
 export function normalizeStreamName(stream, programme, spec) {
     const s = String(stream || '').trim().toUpperCase();
@@ -205,7 +205,7 @@ export function sanitizeDatabase(database) {
             }
         });
         database.applications = Array.from(appMap.values())
-            .filter(a => a['Student ID'] !== 'P03KU24M015037' && a['Application ID'] !== 'APP-0037' && a['Company Name'] !== 'Jp Morgan' && a['Opportunity ID'] !== 'EXP-MBA-JPM' && a['Company Name'] !== 'Mona Cream Jobs' && a['Opportunity ID'] !== 'EXP-MBA-MONA')
+            .filter(a => a['Student ID'] !== 'P03KU24M015037' && a['Application ID'] !== 'APP-0037' && a['Company Name'] !== 'Mona Cream Jobs' && a['Opportunity ID'] !== 'EXP-MBA-MONA')
             .map(a => {
             let updated = {
                 ...a,
